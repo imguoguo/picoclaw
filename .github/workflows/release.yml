@@ -70,9 +70,17 @@ jobs:
             build/sha256sums.txt
           if-no-files-found: error
 
+  build-docker:
+    name: Build and Push Docker Images
+    needs: create-tag
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      tag: ${{ inputs.tag }}
+    secrets: inherit
+
   create-release:
     name: Create GitHub Release
-    needs: [create-tag, build-binaries]
+    needs: [create-tag, build-binaries, build-docker]
     runs-on: ubuntu-latest
     permissions:
       contents: write
