@@ -85,9 +85,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download all artifacts
+      - name: Download release binaries artifact
         uses: actions/download-artifact@v4
         with:
+          name: picoclaw-binaries
           path: release-artifacts
 
       - name: Show downloaded files
