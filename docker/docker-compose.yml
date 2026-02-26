@@ -24,7 +24,7 @@ services:
   picoclaw-gateway:
     image: docker.io/sipeed/picoclaw:latest
     container_name: picoclaw-gateway
-    restart: unless-stopped
+    restart: on-failure
     profiles:
       - gateway
     # Uncomment to access host network; leave commented unless needed.
