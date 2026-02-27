@@ -70,7 +70,7 @@ func main() {
 	mux := http.NewServeMux()
 	server.RegisterConfigAPI(mux, absPath)
 	server.RegisterAuthAPI(mux, absPath)
-	server.RegisterProcessAPI(mux)
+	server.RegisterProcessAPI(mux, absPath)
 
 	staticFS, err := fs.Sub(staticFiles, "internal/ui")
 	if err != nil {

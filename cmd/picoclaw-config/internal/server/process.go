@@ -4,17 +4,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"time"
+
+	"github.com/sipeed/picoclaw/pkg/config"
 )
 
 // RegisterProcessAPI registers endpoints to start, stop and check status of the picoclaw gateway.
-func RegisterProcessAPI(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/process/status", handleStatusGateway)
+func RegisterProcessAPI(mux *http.ServeMux, absPath string) {
+	mux.HandleFunc("GET /api/process/status", func(w http.ResponseWriter, r *http.Request) {
+		handleStatusGateway(w, r, absPath)
+	})
 	mux.HandleFunc("POST /api/process/start", handleStartGateway)
 	mux.HandleFunc("POST /api/process/stop", handleStopGateway)
 }
@@ -86,9 +92,22 @@ func handleStopGateway(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func handleStatusGateway(w http.ResponseWriter, r *http.Request) {
+func handleStatusGateway(w http.ResponseWriter, r *http.Request, absPath string) {
+	cfg, cfgErr := config.LoadConfig(absPath)
+	host := "127.0.0.1"
+	port := 18790
+	if cfgErr == nil && cfg != nil {
+		if cfg.Gateway.Host != "" && cfg.Gateway.Host != "0.0.0.0" {
+			host = cfg.Gateway.Host
+		}
+		if cfg.Gateway.Port != 0 {
+			port = cfg.Gateway.Port
+		}
+	}
+
+	url := fmt.Sprintf("http://%s/health", net.JoinHostPort(host, strconv.Itoa(port)))
 	client := http.Client{Timeout: 2 * time.Second}
-	resp, err := client.Get("http://localhost:18790/health")
+	resp, err := client.Get(url)
 
 	w.Header().Set("Content-Type", "application/json")
 
