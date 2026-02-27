@@ -208,6 +208,62 @@ OAuth Browser 回调端点（Google Antigravity 专用），由 OAuth Provider �
 - `code` — 授权码
 
 认证成功后重定向到 `/#auth`。
+## Process API
+
+#### GET /api/process/status
+
+获取 `picoclaw gateway` 进程的运行状态。
+
+**Response** `200 OK` (运行中)
+
+```json
+{
+  "process_status": "running",
+  "status": "ok",
+  "uptime": "1.010814s"
+}
+```
+
+**Response** `200 OK` (未运行)
+
+```json
+{
+  "process_status": "stopped",
+  "error": "Get \"http://localhost:18790/health\": dial tcp [::1]:18790: connect: connection refused"
+}
+```
+
+---
+
+#### POST /api/process/start
+
+在后台启动 `picoclaw gateway` 进程。
+
+**Response** `200 OK`
+
+```json
+{
+  "status": "ok",
+  "pid": 12345
+}
+```
+
+---
+
+#### POST /api/process/stop
+
+停止正在运行的 `picoclaw gateway` 进程。
+
+**Response** `200 OK`
+
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
 ## 测试
 
 ```bash
