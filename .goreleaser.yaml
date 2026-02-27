@@ -38,6 +38,7 @@ builds:
         goarch: arm
 
   - id: picoclaw-config
+    binary: picoclaw-config
     env:
       - CGO_ENABLED=0
     tags:
