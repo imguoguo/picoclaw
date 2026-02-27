@@ -4,9 +4,13 @@ A standalone web-based configuration editor for PicoClaw, providing visual JSON 
 
 ## Features
 
-- 📝 **Config Editor** — Web-based JSON editor with real-time validation, formatting, and `Ctrl+S` shortcut
+- 📝 **Config Editor** — Sidebar-based settings UI with model management, channel configuration forms, and a raw JSON editor (`Ctrl+S` to save)
+- 🤖 **Model Management** — Model card grid with availability status (grayed out without API key), primary model selection, add/edit/delete with required/optional field separation
+- 📡 **Channel Configuration** — Form-based settings for 12 channel types (Telegram, Discord, Slack, WeCom, DingTalk, Feishu, LINE, WhatsApp, QQ, OneBot, MaixCAM, etc.) with documentation links
 - 🔐 **Provider Auth** — Login to OpenAI (Device Code), Anthropic (API Token), Google Antigravity (Browser OAuth)
 - 🌐 **Embedded Frontend** — Compiles to a single binary with no external dependencies
+- 🌍 **i18n** — Chinese/English language switching with browser auto-detection
+- 🎨 **Theme** — Light / Dark / System theme toggle with localStorage persistence
 
 ## Quick Start
 
@@ -38,9 +42,65 @@ Options:
   -public        Listen on all interfaces (0.0.0.0), allowing access from other devices
 ```
 
+## Frontend
+
+The frontend is a single HTML file (`internal/ui/index.html`) embedded into the binary via `//go:embed`. It uses vanilla JS with no external frameworks.
+
+### Layout
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Logo  PicoClaw Config       [🎨] [EN/中] [▶ Start/Stop] │
+├──────────────┬───────────────────────────────────────────┤
+│  ▾ Providers │   Content panel                           │
+│    Models    │   (rendered based on sidebar selection)    │
+│    Auth      │                                           │
+│  ▾ Channels  │                                           │
+│    Telegram  │                                           │
+│    Discord   │                                           │
+│    ...       │                                           │
+│  ──────────  │                                           │
+│  Raw JSON    │                                           │
+├──────────────┴───────────────────────────────────────────┤
+│  Footer                                                  │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Data Flow
+
+1. Page load → `GET /api/config` → stored in JS global `configData`
+2. Sidebar click → renders the corresponding panel from `configData`
+3. User edits & saves → merges form data back into `configData` → `PUT /api/config`
+4. Auth panel uses `/api/auth/*` endpoints
+5. Start/Stop button uses `/api/process/*` endpoints
+
+### i18n
+
+- Translation dictionaries: `i18nData.en` / `i18nData.zh`
+- `t(key, params)` — runtime translation lookup with `{param}` substitution
+- Static HTML uses `data-i18n` attributes, updated by `applyI18n()`
+- Language preference saved in `localStorage('picoclaw-lang')`, auto-detects browser language on first visit
+
+### Theme
+
+Three modes cycled via the header button: **System** (default) → **Light** → **Dark**
+
+- CSS variables defined per theme via `[data-theme="light"]` / `[data-theme="dark"]` selectors
+- Inline `<script>` in `<head>` applies theme before paint to avoid FOUC
+- Listens to `prefers-color-scheme` media query for real-time system theme changes
+- Preference saved in `localStorage('picoclaw-theme')`
+
 ## API Reference
 
 Base URL: `http://localhost:18800`
+
+---
+
+### Static Files
+
+#### GET /
+
+Serves the embedded frontend (`index.html`).
 
 ---
 

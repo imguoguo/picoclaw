@@ -4,9 +4,13 @@ PicoClaw 的独立 Web 配置编辑器，提供可视化 JSON 配置编辑和 OA
 
 ## 功能
 
-- 📝 **配置编辑** — 基于 Web 的 JSON 编辑器，支持实时校验、格式化、`Ctrl+S` 保存
+- 📝 **配置编辑** — 侧边栏式设置 UI，支持模型管理、通道配置表单和原始 JSON 编辑器（`Ctrl+S` 保存）
+- 🤖 **模型管理** — 模型卡片网格，可用性状态显示（无 API Key 时灰色），主模型选择，增删改查，必填/选填字段分离
+- 📡 **通道配置** — 12 种通道类型（Telegram、Discord、Slack、企业微信、钉钉、飞书、LINE、WhatsApp、QQ、OneBot、MaixCAM 等）的表单化配置，附带文档链接
 - 🔐 **Provider 认证** — 支持 OpenAI (Device Code)、Anthropic (API Token)、Google Antigravity (Browser OAuth) 登录
 - 🌐 **嵌入式前端** — 编译为单一二进制文件，无需额外依赖
+- 🌍 **国际化** — 中英文切换，首次访问自动检测浏览器语言
+- 🎨 **主题** — 亮色 / 暗色 / 跟随系统，偏好保存在 localStorage
 
 ## 快速开始
 
@@ -38,9 +42,65 @@ Options:
   -public        监听所有网络接口（0.0.0.0），允许局域网设备访问
 ```
 
+## 前端
+
+前端是单个 HTML 文件（`internal/ui/index.html`），通过 `//go:embed` 嵌入到二进制中。使用原生 JS，无外部框架依赖。
+
+### 布局
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Logo  PicoClaw Config       [🎨] [EN/中] [▶ 启动/停止]  │
+├──────────────┬───────────────────────────────────────────┤
+│  ▾ 提供商     │   内容面板                                │
+│    模型       │   （根据侧边栏选中项渲染）                  │
+│    认证       │                                           │
+│  ▾ 通道       │                                           │
+│    Telegram  │                                           │
+│    Discord   │                                           │
+│    ...       │                                           │
+│  ──────────  │                                           │
+│  原始 JSON    │                                           │
+├──────────────┴───────────────────────────────────────────┤
+│  Footer                                                  │
+└──────────────────────────────────────────────────────────┘
+```
+
+### 数据流
+
+1. 页面加载 → `GET /api/config` → 存入 JS 全局变量 `configData`
+2. 点击侧边栏 → 根据 `configData` 渲染对应面板
+3. 用户修改并保存 → 合并表单数据回 `configData` → `PUT /api/config`
+4. 认证面板使用 `/api/auth/*` 端点
+5. 启动/停止按钮使用 `/api/process/*` 端点
+
+### 国际化
+
+- 翻译字典：`i18nData.en` / `i18nData.zh`
+- `t(key, params)` — 运行时翻译查找，支持 `{param}` 参数替换
+- 静态 HTML 使用 `data-i18n` 属性，由 `applyI18n()` 更新
+- 语言偏好保存在 `localStorage('picoclaw-lang')`，首次访问自动检测浏览器语言
+
+### 主题
+
+通过 Header 按钮循环切换三种模式：**跟随系统**（默认）→ **亮色** → **暗色**
+
+- CSS 变量通过 `[data-theme="light"]` / `[data-theme="dark"]` 选择器按主题定义
+- `<head>` 中的内联 `<script>` 在渲染前应用主题，避免闪烁
+- 监听 `prefers-color-scheme` 媒体查询，实时响应系统主题变化
+- 偏好保存在 `localStorage('picoclaw-theme')`
+
 ## API 文档
 
 Base URL: `http://localhost:18800`
+
+### 静态文件
+
+#### GET /
+
+提供嵌入式前端页面（`index.html`）。
+
+---
 
 ### Config API
 
