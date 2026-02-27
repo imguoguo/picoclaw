@@ -212,6 +212,62 @@ OAuth browser callback endpoint (used by Google Antigravity). Called by the OAut
 On success, redirects to `/#auth`.
 
 
+## Process API
+
+#### GET /api/process/status
+
+Gets the running status of the `picoclaw gateway` process.
+
+**Response** `200 OK` (Running)
+
+```json
+{
+  "process_status": "running",
+  "status": "ok",
+  "uptime": "1.010814s"
+}
+```
+
+**Response** `200 OK` (Stopped)
+
+```json
+{
+  "process_status": "stopped",
+  "error": "Get \"http://localhost:18790/health\": dial tcp [::1]:18790: connect: connection refused"
+}
+```
+
+---
+
+#### POST /api/process/start
+
+Starts the `picoclaw gateway` process in the background.
+
+**Response** `200 OK`
+
+```json
+{
+  "status": "ok",
+  "pid": 12345
+}
+```
+
+---
+
+#### POST /api/process/stop
+
+Stops the running `picoclaw gateway` process.
+
+**Response** `200 OK`
+
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
 ## Testing
 
 ```bash
