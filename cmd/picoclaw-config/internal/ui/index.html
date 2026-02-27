@@ -470,8 +470,8 @@
     <div class="header-right">
         <button class="theme-btn" id="btnTheme" onclick="cycleTheme()" title="Toggle theme"></button>
         <button class="lang-btn" id="btnLang" onclick="toggleLang()">EN</button>
-        <button class="btn btn-run btn-sm" id="btnRunStop" title="Coming soon">
-            <span class="icon">&#9654;</span> <span data-i18n="start">Start</span>
+        <button class="btn btn-run btn-sm" id="btnRunStop" disabled>
+            <span class="icon" id="btnRunStopIcon">&#9654;</span> <span id="btnRunStopText" data-i18n="start">Start</span>
         </button>
     </div>
 </header>
@@ -750,6 +750,13 @@ const i18nData = {
         'status.openingBrowser': 'Opening browser for authentication...',
         'status.loginStarted': 'Login started...',
         'status.loginSuccess': 'Login successful!',
+        // Process
+        'process.starting': 'Starting gateway...',
+        'process.started': 'Gateway started (PID: {pid})',
+        'process.startFailed': 'Failed to start gateway',
+        'process.stopping': 'Stopping gateway...',
+        'process.stopped': 'Gateway stopped',
+        'process.stopFailed': 'Failed to stop gateway',
     },
     zh: {
         'start': '\u542F\u52A8',
@@ -840,6 +847,12 @@ const i18nData = {
         'status.openingBrowser': '\u6B63\u5728\u6253\u5F00\u6D4F\u89C8\u5668\u8FDB\u884C\u8BA4\u8BC1...',
         'status.loginStarted': '\u767B\u5F55\u5DF2\u542F\u52A8...',
         'status.loginSuccess': '\u767B\u5F55\u6210\u529F\uFF01',
+        'process.starting': '\u6B63\u5728\u542F\u52A8 Gateway...',
+        'process.started': 'Gateway \u5DF2\u542F\u52A8 (PID: {pid})',
+        'process.startFailed': 'Gateway \u542F\u52A8\u5931\u8D25',
+        'process.stopping': '\u6B63\u5728\u505C\u6B62 Gateway...',
+        'process.stopped': 'Gateway \u5DF2\u505C\u6B62',
+        'process.stopFailed': 'Gateway \u505C\u6B62\u5931\u8D25',
     }
 };
 
@@ -1608,10 +1621,76 @@ async function logoutProvider(provider) {
     }
 }
 
-// ── Run/Stop button (placeholder) ───────────────────
+// ── Process API (Start/Stop/Status) ─────────────────
+let gatewayRunning = false;
+let processPolling = null;
+
+function updateRunStopButton(running) {
+    gatewayRunning = running;
+    const btn = document.getElementById('btnRunStop');
+    const icon = document.getElementById('btnRunStopIcon');
+    const text = document.getElementById('btnRunStopText');
+    btn.disabled = false;
+    if (running) {
+        btn.className = 'btn btn-stop btn-sm';
+        icon.innerHTML = '&#9632;';
+        text.textContent = t('stop');
+    } else {
+        btn.className = 'btn btn-run btn-sm';
+        icon.innerHTML = '&#9654;';
+        text.textContent = t('start');
+    }
+}
+
+async function checkProcessStatus() {
+    try {
+        const res = await fetch('/api/process/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        updateRunStopButton(data.process_status === 'running');
+    } catch (e) {
+        updateRunStopButton(false);
+    }
+}
+
+async function startGateway() {
+    const btn = document.getElementById('btnRunStop');
+    btn.disabled = true;
+    showStatus(t('process.starting'), 'success');
+    try {
+        const res = await fetch('/api/process/start', { method: 'POST' });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        showStatus(t('process.started', { pid: data.pid || '?' }), 'success');
+        setTimeout(checkProcessStatus, 1000);
+    } catch (e) {
+        showStatus(t('process.startFailed') + ': ' + e.message, 'error');
+        btn.disabled = false;
+    }
+}
+
+async function stopGateway() {
+    const btn = document.getElementById('btnRunStop');
+    btn.disabled = true;
+    showStatus(t('process.stopping'), 'success');
+    try {
+        const res = await fetch('/api/process/stop', { method: 'POST' });
+        if (!res.ok) throw new Error(await res.text());
+        showStatus(t('process.stopped'), 'success');
+        setTimeout(checkProcessStatus, 1000);
+    } catch (e) {
+        showStatus(t('process.stopFailed') + ': ' + e.message, 'error');
+        btn.disabled = false;
+    }
+}
+
 document.getElementById('btnRunStop').addEventListener('click', () => {
-    showStatus(t('comingSoon'), 'error');
+    if (gatewayRunning) { stopGateway(); } else { startGateway(); }
 });
+
+// Poll status every 5 seconds
+checkProcessStatus();
+processPolling = setInterval(checkProcessStatus, 5000);
 
 // ── Utilities ───────────────────────────────────────
 function esc(s) {
