@@ -2,8 +2,10 @@
 
 # Build variables
 BINARY_NAME=picoclaw
+BINARY_NAME_CONFIG=picoclaw-config
 BUILD_DIR=build
 CMD_DIR=cmd/$(BINARY_NAME)
+CMD_DIR_CONFIG=cmd/$(BINARY_NAME_CONFIG)
 MAIN_GO=$(CMD_DIR)/main.go
 
 # Version
@@ -68,6 +70,7 @@ else
 endif
 
 BINARY_PATH=$(BUILD_DIR)/$(BINARY_NAME)-$(PLATFORM)-$(ARCH)
+BINARY_PATH_CONFIG=$(BUILD_DIR)/$(BINARY_NAME_CONFIG)-$(PLATFORM)-$(ARCH)
 
 # Default target
 all: build
@@ -79,6 +82,12 @@ generate:
 	@$(GO) generate ./...
 	@echo "Run generate complete"
 
+## generate-config: Run generate for picoclaw-config
+generate-config:
+	@echo "Run generate for picoclaw-config..."
+	@$(GO) generate ./$(CMD_DIR_CONFIG)/...
+	@echo "Run generate complete"
+
 ## build: Build the picoclaw binary for current platform
 build: generate
 	@echo "Building $(BINARY_NAME) for $(PLATFORM)/$(ARCH)..."
@@ -86,6 +95,10 @@ build: generate
 	@$(GO) build $(GOFLAGS) $(LDFLAGS) -o $(BINARY_PATH) ./$(CMD_DIR)
 	@echo "Build complete: $(BINARY_PATH)"
 	@ln -sf $(BINARY_NAME)-$(PLATFORM)-$(ARCH) $(BUILD_DIR)/$(BINARY_NAME)
+	@echo "Building $(BINARY_NAME_CONFIG) for $(PLATFORM)/$(ARCH)..."
+	@$(GO) build $(GOFLAGS) -ldflags "-s -w" -o $(BINARY_PATH_CONFIG) ./$(CMD_DIR_CONFIG)
+	@echo "Build complete: $(BINARY_PATH_CONFIG)"
+	@ln -sf $(BINARY_NAME_CONFIG)-$(PLATFORM)-$(ARCH) $(BUILD_DIR)/$(BINARY_NAME_CONFIG)
 
 ## build-all: Build picoclaw for all platforms
 build-all: generate
@@ -98,6 +111,14 @@ build-all: generate
 	GOOS=linux GOARCH=arm GOARM=7 $(GO) build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-armv7 ./$(CMD_DIR)
 	GOOS=darwin GOARCH=arm64 $(GO) build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 ./$(CMD_DIR)
 	GOOS=windows GOARCH=amd64 $(GO) build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./$(CMD_DIR)
+	@echo "Building $(BINARY_NAME_CONFIG) for multiple platforms..."
+	GOOS=linux GOARCH=amd64 $(GO) build -ldflags "-s -w" -o $(BUILD_DIR)/$(BINARY_NAME_CONFIG)-linux-amd64 ./$(CMD_DIR_CONFIG)
+	GOOS=linux GOARCH=arm64 $(GO) build -ldflags "-s -w" -o $(BUILD_DIR)/$(BINARY_NAME_CONFIG)-linux-arm64 ./$(CMD_DIR_CONFIG)
+	GOOS=linux GOARCH=loong64 $(GO) build -ldflags "-s -w" -o $(BUILD_DIR)/$(BINARY_NAME_CONFIG)-linux-loong64 ./$(CMD_DIR_CONFIG)
+	GOOS=linux GOARCH=riscv64 $(GO) build -ldflags "-s -w" -o $(BUILD_DIR)/$(BINARY_NAME_CONFIG)-linux-riscv64 ./$(CMD_DIR_CONFIG)
+	GOOS=linux GOARCH=arm GOARM=7 $(GO) build -ldflags "-s -w" -o $(BUILD_DIR)/$(BINARY_NAME_CONFIG)-linux-armv7 ./$(CMD_DIR_CONFIG)
+	GOOS=darwin GOARCH=arm64 $(GO) build -ldflags "-s -w" -o $(BUILD_DIR)/$(BINARY_NAME_CONFIG)-darwin-arm64 ./$(CMD_DIR_CONFIG)
+	GOOS=windows GOARCH=amd64 $(GO) build -ldflags "-s -w" -o $(BUILD_DIR)/$(BINARY_NAME_CONFIG)-windows-amd64.exe ./$(CMD_DIR_CONFIG)
 	@echo "All builds complete"
 
 ## install: Install picoclaw to system and copy builtin skills
@@ -109,13 +130,18 @@ install: build
 	@chmod +x $(INSTALL_BIN_DIR)/$(BINARY_NAME)$(INSTALL_TMP_SUFFIX)
 	@mv -f $(INSTALL_BIN_DIR)/$(BINARY_NAME)$(INSTALL_TMP_SUFFIX) $(INSTALL_BIN_DIR)/$(BINARY_NAME)
 	@echo "Installed binary to $(INSTALL_BIN_DIR)/$(BINARY_NAME)"
+	@cp $(BUILD_DIR)/$(BINARY_NAME_CONFIG) $(INSTALL_BIN_DIR)/$(BINARY_NAME_CONFIG)$(INSTALL_TMP_SUFFIX)
+	@chmod +x $(INSTALL_BIN_DIR)/$(BINARY_NAME_CONFIG)$(INSTALL_TMP_SUFFIX)
+	@mv -f $(INSTALL_BIN_DIR)/$(BINARY_NAME_CONFIG)$(INSTALL_TMP_SUFFIX) $(INSTALL_BIN_DIR)/$(BINARY_NAME_CONFIG)
+	@echo "Installed binary to $(INSTALL_BIN_DIR)/$(BINARY_NAME_CONFIG)"
 	@echo "Installation complete!"
 
 ## uninstall: Remove picoclaw from system
 uninstall:
 	@echo "Uninstalling $(BINARY_NAME)..."
 	@rm -f $(INSTALL_BIN_DIR)/$(BINARY_NAME)
-	@echo "Removed binary from $(INSTALL_BIN_DIR)/$(BINARY_NAME)"
+	@rm -f $(INSTALL_BIN_DIR)/$(BINARY_NAME_CONFIG)
+	@echo "Removed binaries from $(INSTALL_BIN_DIR)"
 	@echo "Note: Only the executable file has been deleted."
 	@echo "If you need to delete all configurations (config.json, workspace, etc.), run 'make uninstall-all'"
 
