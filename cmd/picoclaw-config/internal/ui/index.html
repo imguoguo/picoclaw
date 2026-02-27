@@ -115,6 +115,7 @@
         }
         .header h1 span { color: var(--text-muted); font-weight: 400; margin-left: 6px; font-size: 13px; }
 
+        .header-center { flex: 1; display: flex; justify-content: center; align-items: center; }
         .header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
         /* Language switcher */
@@ -147,25 +148,30 @@
         .btn-success:hover { background: var(--success-bg); border-color: var(--success); }
         .btn-run { background: var(--success); border-color: var(--success); color: #fff; }
         .btn-run:hover { background: #16a34a; }
+        .btn-process { padding: 8px 28px; font-size: 14px; font-weight: 600; border-radius: 10px; letter-spacing: 0.01em; }
+        .process-hint { font-size: 12px; color: var(--text-muted); margin-left: 10px; white-space: nowrap; }
         .btn-stop { background: var(--error); border-color: var(--error); color: #fff; }
         .btn-stop:hover { background: #dc2626; }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
         .btn .icon { font-size: 14px; }
 
-        /* ── Status bar ─────────────────────────────── */
-        .status-bar {
-            padding: 0 24px; height: 0; overflow: hidden;
-            transition: height var(--transition), padding var(--transition);
+        /* ── Toast notifications ────────────────────── */
+        .toast-container {
+            position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+            z-index: 300; display: flex; flex-direction: column; align-items: center; gap: 8px;
+            pointer-events: none;
         }
-        .status-bar.visible { height: 40px; padding: 6px 24px; }
-        .status-msg {
-            font-size: 13px; font-weight: 500; padding: 5px 14px;
-            border-radius: 8px; display: inline-flex; align-items: center; gap: 6px;
-            animation: slideIn 300ms ease-out;
+        .toast {
+            font-size: 13px; font-weight: 500; padding: 10px 20px;
+            border-radius: 10px; display: inline-flex; align-items: center; gap: 6px;
+            pointer-events: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+            animation: toastIn 300ms ease-out;
+            transition: opacity 300ms ease;
         }
-        .status-msg.success { background: var(--success-bg); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.2); }
-        .status-msg.error { background: var(--error-bg); color: var(--error); border: 1px solid rgba(239, 68, 68, 0.2); }
-        @keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+        .toast.success { background: var(--success-bg); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.3); backdrop-filter: blur(8px); }
+        .toast.error { background: var(--error-bg); color: var(--error); border: 1px solid rgba(239, 68, 68, 0.3); backdrop-filter: blur(8px); }
+        .toast.fade-out { opacity: 0; }
+        @keyframes toastIn { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
 
         /* ── Layout ──────────────────────────────────── */
         .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -467,18 +473,19 @@
         <div class="logo">P</div>
         <h1>PicoClaw <span>Config</span></h1>
     </div>
+    <div class="header-center">
+        <button class="btn btn-run btn-process" id="btnRunStop" disabled>
+            <span class="icon" id="btnRunStopIcon">&#9654;</span> <span id="btnRunStopText" data-i18n="start">Start</span>
+        </button>
+        <span class="process-hint" id="processHint"></span>
+    </div>
     <div class="header-right">
         <button class="theme-btn" id="btnTheme" onclick="cycleTheme()" title="Toggle theme"></button>
         <button class="lang-btn" id="btnLang" onclick="toggleLang()">EN</button>
-        <button class="btn btn-run btn-sm" id="btnRunStop" disabled>
-            <span class="icon" id="btnRunStopIcon">&#9654;</span> <span id="btnRunStopText" data-i18n="start">Start</span>
-        </button>
     </div>
 </header>
 
-<div class="status-bar" id="statusBar">
-    <div class="status-msg" id="statusMsg"></div>
-</div>
+<div class="toast-container" id="toastContainer"></div>
 
 <main class="main">
         <div class="settings-layout">
@@ -751,6 +758,8 @@ const i18nData = {
         'status.loginStarted': 'Login started...',
         'status.loginSuccess': 'Login successful!',
         // Process
+        'process.running': 'Service running',
+        'process.notRunning': 'Service not running',
         'process.starting': 'Starting gateway...',
         'process.started': 'Gateway started (PID: {pid})',
         'process.startFailed': 'Failed to start gateway',
@@ -847,6 +856,8 @@ const i18nData = {
         'status.openingBrowser': '\u6B63\u5728\u6253\u5F00\u6D4F\u89C8\u5668\u8FDB\u884C\u8BA4\u8BC1...',
         'status.loginStarted': '\u767B\u5F55\u5DF2\u542F\u52A8...',
         'status.loginSuccess': '\u767B\u5F55\u6210\u529F\uFF01',
+        'process.running': '\u670D\u52A1\u5DF2\u542F\u52A8',
+        'process.notRunning': '\u670D\u52A1\u672A\u542F\u52A8',
         'process.starting': '\u6B63\u5728\u542F\u52A8 Gateway...',
         'process.started': 'Gateway \u5DF2\u542F\u52A8 (PID: {pid})',
         'process.startFailed': 'Gateway \u542F\u52A8\u5931\u8D25',
@@ -898,7 +909,6 @@ function toggleLang() {
 // ── State ───────────────────────────────────────────
 let configData = null;
 let configPath = '';
-let statusTimeout = null;
 let authPollTimer = null;
 let editingModelIndex = -1;
 
@@ -1033,13 +1043,15 @@ document.querySelectorAll('.sidebar-item').forEach(item => {
 
 // ── Status messages ─────────────────────────────────
 function showStatus(text, type) {
-    const statusBar = document.getElementById('statusBar');
-    const statusMsg = document.getElementById('statusMsg');
-    clearTimeout(statusTimeout);
-    statusMsg.textContent = (type === 'success' ? '\u2713 ' : '\u2717 ') + text;
-    statusMsg.className = 'status-msg ' + type;
-    statusBar.classList.add('visible');
-    statusTimeout = setTimeout(() => statusBar.classList.remove('visible'), 4000);
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = 'toast ' + type;
+    toast.textContent = (type === 'success' ? '\u2713 ' : '\u2717 ') + text;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
 }
 
 // ── Config API ──────────────────────────────────────
@@ -1630,15 +1642,18 @@ function updateRunStopButton(running) {
     const btn = document.getElementById('btnRunStop');
     const icon = document.getElementById('btnRunStopIcon');
     const text = document.getElementById('btnRunStopText');
+    const hint = document.getElementById('processHint');
     btn.disabled = false;
     if (running) {
-        btn.className = 'btn btn-stop btn-sm';
+        btn.className = 'btn btn-stop btn-process';
         icon.innerHTML = '&#9632;';
         text.textContent = t('stop');
+        hint.textContent = '(' + t('process.running') + ')';
     } else {
-        btn.className = 'btn btn-run btn-sm';
+        btn.className = 'btn btn-run btn-process';
         icon.innerHTML = '&#9654;';
         text.textContent = t('start');
+        hint.textContent = '(' + t('process.notRunning') + ')';
     }
 }
 
@@ -1662,7 +1677,7 @@ async function startGateway() {
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
         showStatus(t('process.started', { pid: data.pid || '?' }), 'success');
-        setTimeout(checkProcessStatus, 1000);
+        updateRunStopButton(true);
     } catch (e) {
         showStatus(t('process.startFailed') + ': ' + e.message, 'error');
         btn.disabled = false;
@@ -1677,7 +1692,7 @@ async function stopGateway() {
         const res = await fetch('/api/process/stop', { method: 'POST' });
         if (!res.ok) throw new Error(await res.text());
         showStatus(t('process.stopped'), 'success');
-        setTimeout(checkProcessStatus, 1000);
+        updateRunStopButton(false);
     } catch (e) {
         showStatus(t('process.stopFailed') + ': ' + e.message, 'error');
         btn.disabled = false;
