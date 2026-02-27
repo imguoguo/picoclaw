@@ -896,6 +896,8 @@ function toggleLang() {
     currentLang = currentLang === 'en' ? 'zh' : 'en';
     localStorage.setItem('picoclaw-lang', currentLang);
     applyI18n();
+    // Re-render process button text
+    updateRunStopButton(gatewayRunning);
     // Re-render dynamic panels
     renderModels();
     const activePanel = document.querySelector('.content-panel.active');
