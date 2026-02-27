@@ -1,0 +1,219 @@
+# PicoClaw Config
+
+A standalone web-based configuration editor for PicoClaw, providing visual JSON editing and OAuth provider authentication management.
+
+## Features
+
+- 📝 **Config Editor** — Web-based JSON editor with real-time validation, formatting, and `Ctrl+S` shortcut
+- 🔐 **Provider Auth** — Login to OpenAI (Device Code), Anthropic (API Token), Google Antigravity (Browser OAuth)
+- 🌐 **Embedded Frontend** — Compiles to a single binary with no external dependencies
+
+## Quick Start
+
+```bash
+# Build
+go build -o picoclaw-config ./cmd/picoclaw-config/
+
+# Run with default config path (~/.picoclaw/config.json)
+./picoclaw-config
+
+# Specify a config file
+./picoclaw-config ./config.json
+
+# Allow LAN access
+./picoclaw-config -public
+```
+
+Open `http://localhost:18800` in your browser.
+
+## CLI Options
+
+```
+Usage: picoclaw-config [options] [config.json]
+
+Arguments:
+  config.json    Path to the configuration file (default: ~/.picoclaw/config.json)
+
+Options:
+  -public        Listen on all interfaces (0.0.0.0), allowing access from other devices
+```
+
+## API Reference
+
+Base URL: `http://localhost:18800`
+
+---
+
+### Config API
+
+#### GET /api/config
+
+Reads the current configuration file.
+
+**Response** `200 OK`
+
+```json
+{
+  "config": { ... },
+  "path": "/Users/xiao/.picoclaw/config.json"
+}
+```
+
+---
+
+#### PUT /api/config
+
+Saves the configuration. The request body must be a complete Config JSON object.
+
+**Request Body** — `application/json`
+
+```json
+{
+  "agents": { "defaults": { "model_name": "gpt-5.2" } },
+  "model_list": [
+    {
+      "model_name": "gpt-5.2",
+      "model": "openai/gpt-5.2",
+      "auth_method": "oauth"
+    }
+  ]
+}
+```
+
+**Response** `200 OK`
+
+```json
+{ "status": "ok" }
+```
+
+**Error** `400 Bad Request` — Invalid JSON
+
+---
+
+### Auth API
+
+#### GET /api/auth/status
+
+Returns the authentication status of all providers and any in-progress device code login.
+
+**Response** `200 OK`
+
+```json
+{
+  "providers": [
+    {
+      "provider": "openai",
+      "auth_method": "oauth",
+      "status": "active",
+      "account_id": "user-xxx",
+      "expires_at": "2026-03-01T00:00:00Z"
+    }
+  ],
+  "pending_device": {
+    "provider": "openai",
+    "status": "pending",
+    "device_url": "https://auth.openai.com/activate",
+    "user_code": "ABCD-1234"
+  }
+}
+```
+
+`status` values: `active` | `expired` | `needs_refresh`
+
+`pending_device` is only present when a device code login is in progress.
+
+---
+
+#### POST /api/auth/login
+
+Initiates a provider login.
+
+**Request Body** — `application/json`
+
+```json
+{ "provider": "openai" }
+```
+
+Supported `provider` values: `openai` | `anthropic` | `google-antigravity`
+
+##### OpenAI (Device Code Flow)
+
+Returns device code info. The server polls for completion in the background.
+
+```json
+{
+  "status": "pending",
+  "device_url": "https://auth.openai.com/activate",
+  "user_code": "ABCD-1234",
+  "message": "Open the URL and enter the code to authenticate."
+}
+```
+
+The user opens `device_url` in a browser and enters `user_code`. Once authenticated, `GET /api/auth/status` will show `pending_device.status` as `success`.
+
+##### Anthropic (API Token)
+
+Requires a `token` field in the request:
+
+```json
+{ "provider": "anthropic", "token": "sk-ant-xxx" }
+```
+
+**Response:**
+
+```json
+{ "status": "success", "message": "Anthropic token saved" }
+```
+
+##### Google Antigravity (Browser OAuth)
+
+Returns an authorization URL for the frontend to open in a new tab:
+
+```json
+{
+  "status": "redirect",
+  "auth_url": "https://accounts.google.com/o/oauth2/auth?...",
+  "message": "Open the URL to authenticate with Google."
+}
+```
+
+After authentication, Google redirects to `GET /auth/callback`, which saves the credentials and redirects back to the picoclaw-config UI.
+
+---
+
+#### POST /api/auth/logout
+
+Logs out from a provider.
+
+**Request Body** — `application/json`
+
+```json
+{ "provider": "openai" }
+```
+
+Omit or leave `provider` empty to log out from all providers.
+
+**Response** `200 OK`
+
+```json
+{ "status": "ok" }
+```
+
+---
+
+#### GET /auth/callback
+
+OAuth browser callback endpoint (used by Google Antigravity). Called by the OAuth provider's redirect — **not invoked directly by the frontend**.
+
+**Query Parameters:**
+- `state` — OAuth state for CSRF validation
+- `code` — Authorization code
+
+On success, redirects to `/#auth`.
+
+
+## Testing
+
+```bash
+go test -v ./cmd/picoclaw-config/
+```
