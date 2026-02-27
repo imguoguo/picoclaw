@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PicoClaw Config Editor</title>
+    <meta name="description" content="PicoClaw configuration editor - view and modify your config.json">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+            rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0f1117;
+            --bg-secondary: #161822;
+            --bg-elevated: #1c1f2e;
+            --bg-editor: #12141e;
+            --border: #2a2d3e;
+            --border-focus: #6366f1;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.15);
+            --success: #22c55e;
+            --success-bg: rgba(34, 197, 94, 0.1);
+            --error: #ef4444;
+            --error-bg: rgba(239, 68, 68, 0.1);
+            --warning: #f59e0b;
+            --warning-bg: rgba(245, 158, 11, 0.1);
+            --radius: 12px;
+            --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(12px);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            min-width: 500px;
+            gap: 14px;
+        }
+
+        .logo {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent), #a78bfa);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+            box-shadow: 0 2px 12px var(--accent-glow);
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+
+        .header h1 span {
+            color: var(--text-muted);
+            font-weight: 400;
+            margin-left: 8px;
+            font-size: 14px;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 2px;
+            background: var(--bg-elevated);
+            border-radius: 10px;
+            padding: 3px;
+        }
+
+        .tab {
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 7px 16px;
+            border-radius: 8px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+
+        .tab:hover {
+            color: var(--text-secondary);
+        }
+
+        .tab.active {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 2px 8px var(--accent-glow);
+        }
+
+        /* Panels */
+        .panel {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+        }
+
+        .panel.active {
+            display: flex;
+        }
+
+        /* Toolbar */
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            min-width: 500px;
+            justify-content: end;
+            align-items: center;
+        }
+
+        .btn {
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 8px 18px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            border-color: var(--text-muted);
+            background: var(--bg-secondary);
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+            box-shadow: 0 2px 8px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+            box-shadow: 0 4px 16px var(--accent-glow);
+        }
+
+        .btn-sm {
+            padding: 5px 12px;
+            font-size: 12px;
+        }
+
+        .btn-danger {
+            border-color: rgba(239, 68, 68, 0.3);
+            color: var(--error);
+        }
+
+        .btn-danger:hover {
+            background: var(--error-bg);
+            border-color: var(--error);
+        }
+
+        .btn-success {
+            border-color: rgba(34, 197, 94, 0.3);
+            color: var(--success);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .btn .icon {
+            font-size: 15px;
+        }
+
+        /* Status bar */
+        .status-bar {
+            padding: 0 32px;
+            height: 0;
+            overflow: hidden;
+            transition: height var(--transition), padding var(--transition);
+        }
+
+        .status-bar.visible {
+            height: 44px;
+            padding: 8px 32px;
+        }
+
+        .status-msg {
+            font-size: 13px;
+            font-weight: 500;
+            padding: 6px 14px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            animation: slideIn 300ms ease-out;
+        }
+
+        .status-msg.success {
+            background: var(--success-bg);
+            color: var(--success);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+
+        .status-msg.error {
+            background: var(--error-bg);
+            color: var(--error);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-6px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Main area */
+        .main {
+            flex: 1;
+            padding: 20px 32px 32px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Config Editor panel ────────────────────────────── */
+        .editor-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .editor-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .file-path {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--text-muted);
+            background: var(--bg-elevated);
+            padding: 4px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+
+        .editor-wrapper {
+            flex: 1;
+            position: relative;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            transition: border-color var(--transition), box-shadow var(--transition);
+            min-height: 400px;
+        }
+
+        .editor-wrapper:focus-within {
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .editor-wrapper.error {
+            border-color: var(--error);
+            box-shadow: 0 0 0 3px var(--error-bg);
+        }
+
+        #editor {
+            width: 100%;
+            height: 100%;
+            min-height: 400px;
+            resize: vertical;
+            background: var(--bg-editor);
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13.5px;
+            line-height: 1.65;
+            padding: 20px 24px;
+            border: none;
+            outline: none;
+            tab-size: 2;
+            white-space: pre;
+            overflow: auto;
+        }
+
+        #editor::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* Loading overlay */
+        .loading-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 17, 23, 0.85);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            backdrop-filter: blur(4px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity var(--transition);
+        }
+
+        .loading-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ── Auth panel ──────────────────────────────────────── */
+        .auth-panel {
+            padding: 0;
+        }
+
+        .provider-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 16px;
+            margin-top: 12px;
+        }
+
+        .provider-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            transition: border-color var(--transition), box-shadow var(--transition);
+        }
+
+        .provider-card:hover {
+            border-color: var(--text-muted);
+        }
+
+        .provider-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .provider-name {
+            font-size: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .provider-badge {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-active {
+            background: var(--success-bg);
+            color: var(--success);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+
+        .badge-expired {
+            background: var(--error-bg);
+            color: var(--error);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .badge-pending {
+            background: var(--warning-bg);
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+
+        .badge-none {
+            background: var(--bg-elevated);
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+        }
+
+        .provider-detail {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        .provider-detail strong {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .provider-actions {
+            margin-top: 14px;
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Device code display */
+        .device-code-box {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .device-code-box .code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--accent-hover);
+            letter-spacing: 0.1em;
+            margin: 8px 0;
+        }
+
+        .device-code-box .url {
+            font-size: 12px;
+            color: var(--text-secondary);
+            word-break: break-all;
+        }
+
+        .device-code-box .url a {
+            color: var(--accent-hover);
+            text-decoration: none;
+        }
+
+        .device-code-box .url a:hover {
+            text-decoration: underline;
+        }
+
+        .device-code-box .hint {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 8px;
+        }
+
+        /* Token input */
+        .token-input-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .token-input-group input {
+            flex: 1;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-editor);
+            color: var(--text-primary);
+            outline: none;
+            transition: border-color var(--transition);
+        }
+
+        .token-input-group input:focus {
+            border-color: var(--border-focus);
+        }
+
+        .token-input-group input::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* Footer */
+        .footer {
+            padding: 12px 32px;
+            border-top: 1px solid var(--border);
+            font-size: 12px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .header {
+                padding: 12px 16px;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+
+            .main {
+                padding: 12px 16px 24px;
+            }
+
+            .footer {
+                padding: 10px 16px;
+            }
+
+            .header h1 span {
+                display: none;
+            }
+
+            .provider-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header class="header">
+    <div class="header-left">
+        <div class="logo">P</div>
+        <h1>Config Editor <span>PicoClaw</span></h1>
+    </div>
+    <div class="tabs">
+        <button class="tab active" data-panel="configPanel" id="tabConfig">Config</button>
+        <button class="tab" data-panel="authPanel" id="tabAuth">Providers</button>
+    </div>
+    <div class="toolbar" id="configToolbar">
+        <button class="btn" id="btnReload" title="Reload config from file">
+            <span class="icon">↻</span> Reload
+        </button>
+        <button class="btn" id="btnFormat" title="Format JSON">
+            <span class="icon">{ }</span> Format
+        </button>
+        <button class="btn btn-primary" id="btnSave" title="Save to config file">
+            <span class="icon">💾</span> Save
+        </button>
+    </div>
+</header>
+
+<div class="status-bar" id="statusBar">
+    <div class="status-msg" id="statusMsg"></div>
+</div>
+
+<main class="main">
+    <!-- Config Editor Panel -->
+    <div class="panel active" id="configPanel">
+        <div class="editor-header">
+            <span class="editor-label">config.json</span>
+            <span class="file-path" id="filePath">-</span>
+        </div>
+        <div class="editor-wrapper" id="editorWrapper">
+            <textarea id="editor" spellcheck="false" placeholder="Loading..."></textarea>
+            <div class="loading-overlay" id="loading">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auth Panel -->
+    <div class="panel" id="authPanel">
+        <div class="editor-label" style="margin-bottom: 4px;">Provider Authentication</div>
+        <p style="font-size:13px; color:var(--text-muted); margin-bottom: 4px;">
+            Login to providers using OAuth or API tokens. Credentials are stored locally in <code
+                style="font-family:'JetBrains Mono',monospace; font-size:12px; background:var(--bg-elevated); padding:2px 6px; border-radius:4px;">~/.picoclaw/auth.json</code>.
+        </p>
+        <div class="provider-grid" id="providerGrid">
+            <!-- OpenAI Card -->
+            <div class="provider-card" id="card-openai">
+                <div class="provider-card-header">
+                    <span class="provider-name">🤖 OpenAI</span>
+                    <span class="provider-badge badge-none" id="badge-openai">Not logged in</span>
+                </div>
+                <div id="details-openai"></div>
+                <div class="provider-actions" id="actions-openai">
+                    <button class="btn btn-sm btn-primary" onclick="loginProvider('openai')">Login (Device Code)</button>
+                </div>
+            </div>
+
+            <!-- Anthropic Card -->
+            <div class="provider-card" id="card-anthropic">
+                <div class="provider-card-header">
+                    <span class="provider-name">🧠 Anthropic</span>
+                    <span class="provider-badge badge-none" id="badge-anthropic">Not logged in</span>
+                </div>
+                <div id="details-anthropic"></div>
+                <div class="provider-actions" id="actions-anthropic">
+                    <button class="btn btn-sm btn-primary" onclick="showTokenInput('anthropic')">Login (API Token)</button>
+                </div>
+            </div>
+
+            <!-- Google Antigravity Card -->
+            <div class="provider-card" id="card-google-antigravity">
+                <div class="provider-card-header">
+                    <span class="provider-name">🌐 Google Antigravity</span>
+                    <span class="provider-badge badge-none" id="badge-google-antigravity">Not logged in</span>
+                </div>
+                <div id="details-google-antigravity"></div>
+                <div class="provider-actions" id="actions-google-antigravity">
+                    <button class="btn btn-sm btn-primary" onclick="loginProvider('google-antigravity')">Login (Browser
+                        OAuth)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<footer class="footer">
+    <span>PicoClaw Config Editor</span>
+    <span id="jsonStatus">-</span>
+</footer>
+
+<script>
+    // ── Elements ────────────────────────────────────────
+    const editor = document.getElementById('editor');
+    const btnReload = document.getElementById('btnReload');
+    const btnFormat = document.getElementById('btnFormat');
+    const btnSave = document.getElementById('btnSave');
+    const statusBar = document.getElementById('statusBar');
+    const statusMsg = document.getElementById('statusMsg');
+    const loading = document.getElementById('loading');
+    const filePath = document.getElementById('filePath');
+    const jsonStatus = document.getElementById('jsonStatus');
+    const editorWrap = document.getElementById('editorWrapper');
+    const configToolbar = document.getElementById('configToolbar');
+
+    let statusTimeout = null;
+    let authPollTimer = null;
+
+    // ── Tab switching ──────────────────────────────────
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById(tab.dataset.panel).classList.add('active');
+
+            // Show/hide config-specific toolbar buttons
+            const isConfig = tab.dataset.panel === 'configPanel';
+            btnFormat.style.display = isConfig ? 'inline-flex' : 'none';
+            btnSave.style.display = isConfig ? 'inline-flex' : 'none';
+            btnReload.onclick = isConfig ? loadConfig : loadAuthStatus;
+
+            // Load auth status when switching to auth panel
+            if (tab.dataset.panel === 'authPanel') {
+                loadAuthStatus();
+            }
+        });
+    });
+
+    // ── Status messages ────────────────────────────────
+    function showStatus(text, type) {
+        clearTimeout(statusTimeout);
+        statusMsg.textContent = (type === 'success' ? '✓ ' : '✗ ') + text;
+        statusMsg.className = 'status-msg ' + type;
+        statusBar.classList.add('visible');
+        statusTimeout = setTimeout(() => statusBar.classList.remove('visible'), 4000);
+    }
+
+    function setLoading(on) {
+        loading.classList.toggle('active', on);
+        btnReload.disabled = on;
+        btnSave.disabled = on;
+    }
+
+    // ── JSON validation ────────────────────────────────
+    function validateJson() {
+        const val = editor.value.trim();
+        if (!val) { jsonStatus.textContent = '-'; editorWrap.classList.remove('error'); return null; }
+        try {
+            const obj = JSON.parse(val);
+            jsonStatus.textContent = '✓ JSON valid';
+            jsonStatus.style.color = 'var(--success)';
+            editorWrap.classList.remove('error');
+            return obj;
+        } catch (e) {
+            jsonStatus.textContent = '✗ JSON invalid: ' + e.message;
+            jsonStatus.style.color = 'var(--error)';
+            editorWrap.classList.add('error');
+            return null;
+        }
+    }
+
+    editor.addEventListener('input', validateJson);
+
+    // ── Config API ─────────────────────────────────────
+    async function loadConfig() {
+        setLoading(true);
+        try {
+            const res = await fetch('/api/config');
+            if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + (await res.text()));
+            const data = await res.json();
+            editor.value = JSON.stringify(data.config, null, 2);
+            filePath.textContent = data.path || '-';
+            validateJson();
+            showStatus('Config loaded', 'success');
+        } catch (e) {
+            showStatus('Load failed: ' + e.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function saveConfig() {
+        const obj = validateJson();
+        if (obj === null) {
+            showStatus('Invalid JSON, please fix before saving', 'error');
+            return;
+        }
+        setLoading(true);
+        try {
+            const res = await fetch('/api/config', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(obj),
+            });
+            if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + (await res.text()));
+            showStatus('Config saved', 'success');
+        } catch (e) {
+            showStatus('Save failed: ' + e.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    function formatJson() {
+        const obj = validateJson();
+        if (obj !== null) {
+            editor.value = JSON.stringify(obj, null, 2);
+            showStatus('Formatted', 'success');
+        }
+    }
+
+    btnReload.onclick = loadConfig;
+    btnSave.addEventListener('click', saveConfig);
+    btnFormat.addEventListener('click', formatJson);
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            saveConfig();
+        }
+    });
+
+    // ── Auth API ───────────────────────────────────────
+    async function loadAuthStatus() {
+        try {
+            const res = await fetch('/api/auth/status');
+            if (!res.ok) return;
+            const data = await res.json();
+            renderAuthStatus(data.providers || [], data.pending_device);
+        } catch (e) {
+            console.error('Failed to load auth status:', e);
+        }
+    }
+
+    function renderAuthStatus(providersList, pendingDevice) {
+        const providerMap = {};
+        providersList.forEach(p => { providerMap[p.provider] = p; });
+
+        ['openai', 'anthropic', 'google-antigravity'].forEach(name => {
+            const badge = document.getElementById('badge-' + name);
+            const details = document.getElementById('details-' + name);
+            const actions = document.getElementById('actions-' + name);
+            const p = providerMap[name];
+
+            if (p) {
+                // Logged in
+                const badgeClass = p.status === 'active' ? 'badge-active' :
+                    p.status === 'expired' ? 'badge-expired' : 'badge-pending';
+                const badgeText = p.status === 'active' ? 'Active' :
+                    p.status === 'expired' ? 'Expired' : 'Needs Refresh';
+                badge.className = 'provider-badge ' + badgeClass;
+                badge.textContent = badgeText;
+
+                let detailsHtml = '';
+                if (p.auth_method) detailsHtml += `<div class="provider-detail"><strong>Method:</strong> ${p.auth_method}</div>`;
+                if (p.email) detailsHtml += `<div class="provider-detail"><strong>Email:</strong> ${p.email}</div>`;
+                if (p.account_id) detailsHtml += `<div class="provider-detail"><strong>Account:</strong> ${p.account_id}</div>`;
+                if (p.project_id) detailsHtml += `<div class="provider-detail"><strong>Project:</strong> ${p.project_id}</div>`;
+                if (p.expires_at) {
+                    const d = new Date(p.expires_at);
+                    detailsHtml += `<div class="provider-detail"><strong>Expires:</strong> ${d.toLocaleString()}</div>`;
+                }
+                details.innerHTML = detailsHtml;
+
+                actions.innerHTML = `<button class="btn btn-sm btn-danger" onclick="logoutProvider('${name}')">Logout</button>`;
+            } else {
+                // Not logged in
+                badge.className = 'provider-badge badge-none';
+                badge.textContent = 'Not logged in';
+                details.innerHTML = '';
+
+                // Default login buttons
+                if (name === 'openai') {
+                    actions.innerHTML = `<button class="btn btn-sm btn-primary" onclick="loginProvider('openai')">Login (Device Code)</button>`;
+                } else if (name === 'anthropic') {
+                    actions.innerHTML = `<button class="btn btn-sm btn-primary" onclick="showTokenInput('anthropic')">Login (API Token)</button>`;
+                } else {
+                    actions.innerHTML = `<button class="btn btn-sm btn-primary" onclick="loginProvider('google-antigravity')">Login (Browser OAuth)</button>`;
+                }
+            }
+        });
+
+        // Handle pending device code login display
+        if (pendingDevice && pendingDevice.status === 'pending') {
+            const name = pendingDevice.provider;
+            const badge = document.getElementById('badge-' + name);
+            const details = document.getElementById('details-' + name);
+            const actions = document.getElementById('actions-' + name);
+
+            badge.className = 'provider-badge badge-pending';
+            badge.textContent = 'Authenticating...';
+
+            if (pendingDevice.device_url && pendingDevice.user_code) {
+                details.innerHTML = `
+            <div class="device-code-box">
+              <div class="hint" style="margin-bottom:8px;font-size:12px;">Step 1: Click the link below to open the authentication page</div>
+              <div class="url"><a href="${pendingDevice.device_url}" target="_blank">${pendingDevice.device_url} ↗</a></div>
+              <div class="hint" style="margin-top:10px;margin-bottom:4px;font-size:12px;">Step 2: Enter this code on the page</div>
+              <div class="code">${pendingDevice.user_code}</div>
+              <div class="hint">Step 3: Complete authentication in the browser, this page will update automatically</div>
+            </div>`;
+            }
+
+            if (pendingDevice.error) {
+                details.innerHTML = `<div class="provider-detail" style="color:var(--error)">${pendingDevice.error}</div>`;
+                actions.innerHTML = `<button class="btn btn-sm btn-primary" onclick="loginProvider('${name}')">Retry</button>`;
+            } else {
+                actions.innerHTML = `<button class="btn btn-sm" disabled><span class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></span>Waiting...</button>`;
+            }
+
+            // Start polling
+            startAuthPolling();
+        } else {
+            stopAuthPolling();
+        }
+    }
+
+    function startAuthPolling() {
+        stopAuthPolling();
+        authPollTimer = setInterval(async () => {
+            await loadAuthStatus();
+        }, 3000);
+    }
+
+    function stopAuthPolling() {
+        if (authPollTimer) {
+            clearInterval(authPollTimer);
+            authPollTimer = null;
+        }
+    }
+
+    async function loginProvider(provider) {
+        // Disable the login button while processing
+        const actions = document.getElementById('actions-' + provider);
+        const originalActions = actions ? actions.innerHTML : '';
+        if (actions) {
+            actions.querySelectorAll('.btn').forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
+        }
+
+        try {
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ provider }),
+            });
+            if (!res.ok) throw new Error(await res.text());
+            const data = await res.json();
+
+            if (data.status === 'redirect' && data.auth_url) {
+                // Browser OAuth (Google Antigravity) — open auth URL
+                showStatus('Opening browser for authentication...', 'success');
+                window.open(data.auth_url, '_blank');
+                // Restore button so user can retry if needed
+                if (actions) actions.innerHTML = originalActions;
+                return;
+            }
+
+            if (data.status === 'pending') {
+                showStatus(data.message || 'Login started...', 'success');
+
+                // Show device code immediately from login response
+                if (data.device_url && data.user_code) {
+                    const badge = document.getElementById('badge-' + provider);
+                    const details = document.getElementById('details-' + provider);
+                    if (badge) {
+                        badge.className = 'provider-badge badge-pending';
+                        badge.textContent = 'Authenticating...';
+                    }
+                    if (details) {
+                        details.innerHTML = `
+                <div class="device-code-box">
+                  <div class="hint" style="margin-bottom:8px;font-size:12px;">Step 1: Click the link below to open the authentication page</div>
+                  <div class="url"><a href="${data.device_url}" target="_blank">${data.device_url} ↗</a></div>
+                  <div class="hint" style="margin-top:10px;margin-bottom:4px;font-size:12px;">Step 2: Enter this code on the page</div>
+                  <div class="code">${data.user_code}</div>
+                  <div class="hint">Step 3: Complete authentication in the browser, this page will update automatically</div>
+                </div>`;
+                    }
+                    if (actions) {
+                        actions.innerHTML = `<button class="btn btn-sm" disabled><span class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px;"></span>Waiting...</button>`;
+                    }
+                }
+
+                startAuthPolling();
+            } else if (data.status === 'success') {
+                showStatus(data.message || 'Login successful!', 'success');
+                loadAuthStatus();
+            }
+        } catch (e) {
+            showStatus('Login failed: ' + e.message, 'error');
+            // Restore buttons on error
+            if (actions) actions.innerHTML = originalActions;
+        }
+    }
+
+    function showTokenInput(provider) {
+        const actions = document.getElementById('actions-' + provider);
+        actions.innerHTML = `
+        <div class="token-input-group">
+          <input type="password" id="tokenInput-${provider}" placeholder="Paste your API key here..." />
+          <button class="btn btn-sm btn-primary" onclick="submitToken('${provider}')">Save</button>
+          <button class="btn btn-sm" onclick="loadAuthStatus()">Cancel</button>
+        </div>`;
+        document.getElementById('tokenInput-' + provider).focus();
+    }
+
+    async function submitToken(provider) {
+        const input = document.getElementById('tokenInput-' + provider);
+        const token = input.value.trim();
+        if (!token) {
+            showStatus('Token cannot be empty', 'error');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ provider, token }),
+            });
+            if (!res.ok) throw new Error(await res.text());
+            showStatus('Token saved for ' + provider, 'success');
+            loadAuthStatus();
+        } catch (e) {
+            showStatus('Login failed: ' + e.message, 'error');
+        }
+    }
+
+    async function logoutProvider(provider) {
+        try {
+            const res = await fetch('/api/auth/logout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ provider }),
+            });
+            if (!res.ok) throw new Error(await res.text());
+            showStatus('Logged out from ' + provider, 'success');
+            loadAuthStatus();
+        } catch (e) {
+            showStatus('Logout failed: ' + e.message, 'error');
+        }
+    }
+
+    // ── Init ───────────────────────────────────────────
+    loadConfig();
+
+    // Switch to auth tab if URL has #auth (e.g. after OAuth callback redirect)
+    if (window.location.hash === '#auth') {
+        document.getElementById('tabAuth').click();
+        window.location.hash = '';
+    }
+</script>
+</body>
+
+</html>
