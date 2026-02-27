@@ -19,7 +19,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
+	"time"
 
 	"github.com/sipeed/picoclaw/cmd/picoclaw-config/internal/server"
 )
@@ -67,6 +70,7 @@ func main() {
 	mux := http.NewServeMux()
 	server.RegisterConfigAPI(mux, absPath)
 	server.RegisterAuthAPI(mux, absPath)
+	server.RegisterProcessAPI(mux)
 
 	staticFS, err := fs.Sub(staticFiles, "internal/ui")
 	if err != nil {
@@ -92,7 +96,32 @@ func main() {
 	fmt.Println()
 	// fmt.Println("=============================================")
 
+	go func() {
+		// Wait briefly to ensure the server is ready before opening the browser
+		time.Sleep(500 * time.Millisecond)
+		url := "http://localhost:" + server.DefaultPort
+		if err := openBrowser(url); err != nil {
+			log.Printf("Warning: Failed to auto-open browser: %v\n", err)
+		}
+	}()
+
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
+}
+
+// openBrowser automatically opens the given URL in the default browser.
+func openBrowser(url string) error {
+	var err error
+	switch runtime.GOOS {
+	case "linux":
+		err = exec.Command("xdg-open", url).Start()
+	case "windows":
+		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	case "darwin":
+		err = exec.Command("open", url).Start()
+	default:
+		err = fmt.Errorf("unsupported platform")
+	}
+	return err
 }
