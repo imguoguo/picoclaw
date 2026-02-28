@@ -1140,6 +1140,7 @@ async function loadConfig() {
         configPath = data.path || '';
         document.getElementById('filePath').textContent = configPath || '-';
         renderModels();
+        if (!pendingAction) updateRunStopButton(gatewayRunning);
     } catch (e) {
         showStatus(t('status.loadFailed') + ': ' + e.message, 'error');
     }
@@ -1746,8 +1747,10 @@ function isModelAvailableGlobal(m) {
 }
 
 function checkStartPrereqs() {
-    const hasModel = configData && configData.model_list &&
-        configData.model_list.some(m => isModelAvailableGlobal(m));
+    const primaryModelName = configData && configData.agents && configData.agents.defaults
+        ? (configData.agents.defaults.model_name || '') : '';
+    const hasModel = !!(primaryModelName && configData.model_list &&
+        configData.model_list.some(m => m.model_name === primaryModelName && isModelAvailableGlobal(m)));
     const hasChannel = configData && configData.channels &&
         Object.keys(channelSchemas).some(k => {
             const cfg = configData.channels[channelSchemas[k].configKey];
