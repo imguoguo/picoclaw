@@ -771,6 +771,9 @@ const i18nData = {
         'process.stopping': 'Stopping gateway...',
         'process.stopped': 'Gateway stopped',
         'process.stopFailed': 'Failed to stop gateway',
+        'process.needModel': 'At least one model with API key is required',
+        'process.needChannel': 'At least one channel must be enabled',
+        'process.needBoth': 'Need model with API key and enabled channel to start',
     },
     zh: {
         'start': '\u542F\u52A8',
@@ -869,6 +872,9 @@ const i18nData = {
         'process.stopping': '\u6B63\u5728\u505C\u6B62 Gateway...',
         'process.stopped': 'Gateway \u5DF2\u505C\u6B62',
         'process.stopFailed': 'Gateway \u505C\u6B62\u5931\u8D25',
+        'process.needModel': '\u81F3\u5C11\u9700\u8981\u4E00\u4E2A\u914D\u7F6E\u4E86 API Key \u7684\u6A21\u578B',
+        'process.needChannel': '\u81F3\u5C11\u9700\u8981\u542F\u7528\u4E00\u4E2A\u901A\u9053',
+        'process.needBoth': '\u9700\u8981\u914D\u7F6E\u6A21\u578B\u548C\u542F\u7528\u901A\u9053\u624D\u80FD\u542F\u52A8',
     }
 };
 
@@ -1089,6 +1095,8 @@ async function saveConfig() {
     } catch (e) {
         showStatus(t('status.saveFailed') + ': ' + e.message, 'error');
     }
+    // Refresh start button state after config changes
+    if (!pendingAction) updateRunStopButton(gatewayRunning);
 }
 
 // ── Raw JSON editor ─────────────────────────────────
@@ -1164,18 +1172,7 @@ function renderModels() {
         return ap !== bp ? ap - bp : a - b;
     });
 
-    function isModelAvailable(m) {
-        if (m.api_key) return true;
-        if (m.auth_method === 'oauth') {
-            // Check if the corresponding provider has active OAuth
-            const protocol = m.model ? m.model.split('/')[0] : '';
-            const providerName = protocol === 'google-antigravity' ? 'google-antigravity' : protocol;
-            const authInfo = authProviderMap[providerName];
-            return !!(authInfo && authInfo.status === 'active');
-        }
-        if (m.auth_method) return true; // other auth methods (e.g. token-based)
-        return false;
-    }
+    const isModelAvailable = isModelAvailableGlobal;
 
     let html = '';
     indices.forEach(idx => {
@@ -1673,23 +1670,58 @@ let processPolling = null;
 let pendingAction = null; // { type: 'start'|'stop', retries: 0 }
 const MAX_RETRIES = 10;
 
+function isModelAvailableGlobal(m) {
+    if (m.api_key) return true;
+    if (m.auth_method === 'oauth') {
+        const protocol = m.model ? m.model.split('/')[0] : '';
+        const providerName = protocol === 'google-antigravity' ? 'google-antigravity' : protocol;
+        const authInfo = authProviderMap[providerName];
+        return !!(authInfo && authInfo.status === 'active');
+    }
+    if (m.auth_method) return true;
+    return false;
+}
+
+function checkStartPrereqs() {
+    const hasModel = configData && configData.model_list &&
+        configData.model_list.some(m => isModelAvailableGlobal(m));
+    const hasChannel = configData && configData.channels &&
+        Object.keys(channelSchemas).some(k => {
+            const cfg = configData.channels[channelSchemas[k].configKey];
+            return cfg && cfg.enabled;
+        });
+    return { hasModel, hasChannel, canStart: hasModel && hasChannel };
+}
+
 function updateRunStopButton(running) {
     gatewayRunning = running;
     const btn = document.getElementById('btnRunStop');
     const icon = document.getElementById('btnRunStopIcon');
     const text = document.getElementById('btnRunStopText');
     const hint = document.getElementById('processHint');
-    btn.disabled = false;
     if (running) {
+        btn.disabled = false;
         btn.className = 'btn btn-stop btn-process';
         icon.innerHTML = '&#9632;';
         text.textContent = t('stop');
         hint.textContent = '(' + t('process.running') + ')';
+        hint.style.color = '';
     } else {
+        const prereqs = checkStartPrereqs();
+        btn.disabled = !prereqs.canStart;
         btn.className = 'btn btn-run btn-process';
         icon.innerHTML = '&#9654;';
         text.textContent = t('start');
-        hint.textContent = '(' + t('process.notRunning') + ')';
+        if (!prereqs.canStart) {
+            const reason = !prereqs.hasModel && !prereqs.hasChannel ? t('process.needBoth')
+                : !prereqs.hasModel ? t('process.needModel')
+                : t('process.needChannel');
+            hint.textContent = '(' + reason + ')';
+            hint.style.color = 'var(--danger, #e74c3c)';
+        } else {
+            hint.textContent = '(' + t('process.notRunning') + ')';
+            hint.style.color = '';
+        }
     }
 }
 
@@ -1743,31 +1775,42 @@ function restoreNormalPolling() {
 }
 
 async function startGateway() {
+    const prereqs = checkStartPrereqs();
+    if (!prereqs.canStart) {
+        const reason = !prereqs.hasModel && !prereqs.hasChannel ? t('process.needBoth')
+            : !prereqs.hasModel ? t('process.needModel')
+            : t('process.needChannel');
+        showStatus(reason, 'error');
+        return;
+    }
     setButtonLoading('start');
+    // Set pending BEFORE fetch so polls don't overwrite loading state
+    pendingAction = { type: 'start', retries: 0 };
+    clearInterval(processPolling);
+    processPolling = setInterval(checkProcessStatus, 1000);
     try {
         const res = await fetch('/api/process/start', { method: 'POST' });
         if (!res.ok) throw new Error(await res.text());
-        // Enter pending state — poll will confirm actual status
-        pendingAction = { type: 'start', retries: 0 };
-        // Speed up polling during pending
-        clearInterval(processPolling);
-        processPolling = setInterval(checkProcessStatus, 1000);
     } catch (e) {
         showStatus(t('process.startFailed') + ': ' + e.message, 'error');
+        pendingAction = null;
+        restoreNormalPolling();
         updateRunStopButton(false);
     }
 }
 
 async function stopGateway() {
     setButtonLoading('stop');
+    pendingAction = { type: 'stop', retries: 0 };
+    clearInterval(processPolling);
+    processPolling = setInterval(checkProcessStatus, 1000);
     try {
         const res = await fetch('/api/process/stop', { method: 'POST' });
         if (!res.ok) throw new Error(await res.text());
-        pendingAction = { type: 'stop', retries: 0 };
-        clearInterval(processPolling);
-        processPolling = setInterval(checkProcessStatus, 1000);
     } catch (e) {
         showStatus(t('process.stopFailed') + ': ' + e.message, 'error');
+        pendingAction = null;
+        restoreNormalPolling();
         updateRunStopButton(true);
     }
 }
