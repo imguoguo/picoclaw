@@ -1,4 +1,4 @@
-# PicoClaw Config
+# PicoClaw Launcher
 
 A standalone web-based configuration editor for PicoClaw, providing visual JSON editing and OAuth provider authentication management.
 
@@ -16,16 +16,16 @@ A standalone web-based configuration editor for PicoClaw, providing visual JSON 
 
 ```bash
 # Build
-go build -o picoclaw-config ./cmd/picoclaw-config/
+go build -o picoclaw-launcher ./cmd/picoclaw-launcher/
 
 # Run with default config path (~/.picoclaw/config.json)
-./picoclaw-config
+./picoclaw-launcher
 
 # Specify a config file
-./picoclaw-config ./config.json
+./picoclaw-launcher ./config.json
 
 # Allow LAN access
-./picoclaw-config -public
+./picoclaw-launcher -public
 ```
 
 Open `http://localhost:18800` in your browser.
@@ -41,54 +41,6 @@ Arguments:
 Options:
   -public        Listen on all interfaces (0.0.0.0), allowing access from other devices
 ```
-
-## Frontend
-
-The frontend is a single HTML file (`internal/ui/index.html`) embedded into the binary via `//go:embed`. It uses vanilla JS with no external frameworks.
-
-### Layout
-
-```
-┌──────────────────────────────────────────────────────────┐
-│  Logo  PicoClaw Config       [🎨] [EN/中] [▶ Start/Stop] │
-├──────────────┬───────────────────────────────────────────┤
-│  ▾ Providers │   Content panel                           │
-│    Models    │   (rendered based on sidebar selection)    │
-│    Auth      │                                           │
-│  ▾ Channels  │                                           │
-│    Telegram  │                                           │
-│    Discord   │                                           │
-│    ...       │                                           │
-│  ──────────  │                                           │
-│  Raw JSON    │                                           │
-├──────────────┴───────────────────────────────────────────┤
-│  Footer                                                  │
-└──────────────────────────────────────────────────────────┘
-```
-
-### Data Flow
-
-1. Page load → `GET /api/config` → stored in JS global `configData`
-2. Sidebar click → renders the corresponding panel from `configData`
-3. User edits & saves → merges form data back into `configData` → `PUT /api/config`
-4. Auth panel uses `/api/auth/*` endpoints
-5. Start/Stop button uses `/api/process/*` endpoints
-
-### i18n
-
-- Translation dictionaries: `i18nData.en` / `i18nData.zh`
-- `t(key, params)` — runtime translation lookup with `{param}` substitution
-- Static HTML uses `data-i18n` attributes, updated by `applyI18n()`
-- Language preference saved in `localStorage('picoclaw-lang')`, auto-detects browser language on first visit
-
-### Theme
-
-Three modes cycled via the header button: **System** (default) → **Light** → **Dark**
-
-- CSS variables defined per theme via `[data-theme="light"]` / `[data-theme="dark"]` selectors
-- Inline `<script>` in `<head>` applies theme before paint to avoid FOUC
-- Listens to `prefers-color-scheme` media query for real-time system theme changes
-- Preference saved in `localStorage('picoclaw-theme')`
 
 ## API Reference
 
@@ -272,7 +224,7 @@ OAuth browser callback endpoint (used by Google Antigravity). Called by the OAut
 On success, redirects to `/#auth`.
 
 
-## Process API
+### Process API
 
 #### GET /api/process/status
 
@@ -331,5 +283,5 @@ Stops the running `picoclaw gateway` process.
 ## Testing
 
 ```bash
-go test -v ./cmd/picoclaw-config/
+go test -v ./cmd/picoclaw-launcher/
 ```

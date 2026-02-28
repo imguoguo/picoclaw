@@ -37,8 +37,8 @@ builds:
       - goos: windows
         goarch: arm
 
-  - id: picoclaw-config
-    binary: picoclaw-config
+  - id: picoclaw-launcher
+    binary: picoclaw-launcher
     env:
       - CGO_ENABLED=0
     tags:
@@ -58,7 +58,7 @@ builds:
       - arm
     goarm:
       - "7"
-    main: ./cmd/picoclaw-config
+    main: ./cmd/picoclaw-launcher
     ignore:
       - goos: windows
         goarch: arm
@@ -100,7 +100,7 @@ nfpms:
   - id: picoclaw
     builds:
       - picoclaw
-      - picoclaw-config
+      - picoclaw-launcher
     package_name: picoclaw
     file_name_template: >-
       {{ .PackageName }}_
