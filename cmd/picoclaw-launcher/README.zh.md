@@ -1,10 +1,13 @@
 # PicoClaw Launcher
 
-PicoClaw 的独立 Web 配置编辑器，提供可视化 JSON 配置编辑和 OAuth Provider 认证管理。
+> [!WARNING]
+> 该项目属于临时解决方案，后续会重构并提供完整的 Web 服务，因此该目录下的接口并不稳定。
+
+PicoClaw 的独立启动器，提供可视化 JSON 配置编辑和 OAuth Provider 认证管理。
 
 ## 功能
 
-- 📝 **配置编辑** — 侧边栏式设置 UI，支持模型管理、通道配置表单和原始 JSON 编辑器（`Ctrl+S` 保存）
+- 📝 **配置编辑** — 侧边栏式设置 UI，支持模型管理、通道配置表单和原始 JSON 编辑器
 - 🤖 **模型管理** — 模型卡片网格，可用性状态显示（无 API Key 时灰色），主模型选择，增删改查，必填/选填字段分离
 - 📡 **通道配置** — 12 种通道类型（Telegram、Discord、Slack、企业微信、钉钉、飞书、LINE、WhatsApp、QQ、OneBot、MaixCAM 等）的表单化配置，附带文档链接
 - 🔐 **Provider 认证** — 支持 OpenAI (Device Code)、Anthropic (API Token)、Google Antigravity (Browser OAuth) 登录

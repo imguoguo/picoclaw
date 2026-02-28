@@ -1,10 +1,13 @@
 # PicoClaw Launcher
 
-A standalone web-based configuration editor for PicoClaw, providing visual JSON editing and OAuth provider authentication management.
+> [!WARNING]
+> This project is a temporary solution and will be refactored in the future to provide a complete web service. Therefore, the APIs in this directory are not stable.
+
+A standalone launcher for PicoClaw, providing visual JSON editing and OAuth provider authentication management.
 
 ## Features
 
-- 📝 **Config Editor** — Sidebar-based settings UI with model management, channel configuration forms, and a raw JSON editor (`Ctrl+S` to save)
+- 📝 **Config Editor** — Sidebar-based settings UI with model management, channel configuration forms, and a raw JSON editor
 - 🤖 **Model Management** — Model card grid with availability status (grayed out without API key), primary model selection, add/edit/delete with required/optional field separation
 - 📡 **Channel Configuration** — Form-based settings for 12 channel types (Telegram, Discord, Slack, WeCom, DingTalk, Feishu, LINE, WhatsApp, QQ, OneBot, MaixCAM, etc.) with documentation links
 - 🔐 **Provider Auth** — Login to OpenAI (Device Code), Anthropic (API Token), Google Antigravity (Browser OAuth)
