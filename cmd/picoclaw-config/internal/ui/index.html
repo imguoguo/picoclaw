@@ -149,6 +149,11 @@
         .btn-run { background: var(--success); border-color: var(--success); color: #fff; }
         .btn-run:hover { background: #16a34a; }
         .btn-process { padding: 8px 28px; font-size: 14px; font-weight: 600; border-radius: 10px; letter-spacing: 0.01em; }
+        .btn-process .btn-spinner {
+            width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff; border-radius: 50%;
+            animation: spin 0.7s linear infinite; display: inline-block;
+        }
         .process-hint { font-size: 12px; color: var(--text-muted); margin-left: 10px; white-space: nowrap; }
         .btn-stop { background: var(--error); border-color: var(--error); color: #fff; }
         .btn-stop:hover { background: #dc2626; }
@@ -761,7 +766,7 @@ const i18nData = {
         'process.running': 'Service running',
         'process.notRunning': 'Service not running',
         'process.starting': 'Starting gateway...',
-        'process.started': 'Gateway started (PID: {pid})',
+        'process.started': 'Gateway started',
         'process.startFailed': 'Failed to start gateway',
         'process.stopping': 'Stopping gateway...',
         'process.stopped': 'Gateway stopped',
@@ -859,7 +864,7 @@ const i18nData = {
         'process.running': '\u670D\u52A1\u5DF2\u542F\u52A8',
         'process.notRunning': '\u670D\u52A1\u672A\u542F\u52A8',
         'process.starting': '\u6B63\u5728\u542F\u52A8 Gateway...',
-        'process.started': 'Gateway \u5DF2\u542F\u52A8 (PID: {pid})',
+        'process.started': 'Gateway \u5DF2\u542F\u52A8',
         'process.startFailed': 'Gateway \u542F\u52A8\u5931\u8D25',
         'process.stopping': '\u6B63\u5728\u505C\u6B62 Gateway...',
         'process.stopped': 'Gateway \u5DF2\u505C\u6B62',
@@ -1638,6 +1643,8 @@ async function logoutProvider(provider) {
 // ── Process API (Start/Stop/Status) ─────────────────
 let gatewayRunning = false;
 let processPolling = null;
+let pendingAction = null; // { type: 'start'|'stop', retries: 0 }
+const MAX_RETRIES = 10;
 
 function updateRunStopButton(running) {
     gatewayRunning = running;
@@ -1659,45 +1666,82 @@ function updateRunStopButton(running) {
     }
 }
 
+function setButtonLoading(actionType) {
+    const btn = document.getElementById('btnRunStop');
+    const icon = document.getElementById('btnRunStopIcon');
+    const text = document.getElementById('btnRunStopText');
+    const hint = document.getElementById('processHint');
+    btn.disabled = true;
+    btn.className = 'btn btn-process';
+    icon.innerHTML = '<span class="btn-spinner"></span>';
+    text.textContent = actionType === 'start' ? t('process.starting') : t('process.stopping');
+    hint.textContent = '';
+}
+
 async function checkProcessStatus() {
+    let running = false;
     try {
         const res = await fetch('/api/process/status');
-        if (!res.ok) return;
-        const data = await res.json();
-        updateRunStopButton(data.process_status === 'running');
-    } catch (e) {
-        updateRunStopButton(false);
+        if (res.ok) {
+            const data = await res.json();
+            running = data.process_status === 'running';
+        }
+    } catch (e) { /* treat as not running */ }
+
+    if (pendingAction) {
+        const expected = pendingAction.type === 'start';
+        if (running === expected) {
+            showStatus(expected ? t('process.started') : t('process.stopped'), 'success');
+            pendingAction = null;
+            restoreNormalPolling();
+            updateRunStopButton(running);
+        } else {
+            pendingAction.retries++;
+            if (pendingAction.retries >= MAX_RETRIES) {
+                const msg = pendingAction.type === 'start' ? t('process.startFailed') : t('process.stopFailed');
+                showStatus(msg, 'error');
+                pendingAction = null;
+                restoreNormalPolling();
+                updateRunStopButton(running);
+            }
+        }
+    } else {
+        updateRunStopButton(running);
     }
 }
 
+function restoreNormalPolling() {
+    clearInterval(processPolling);
+    processPolling = setInterval(checkProcessStatus, 5000);
+}
+
 async function startGateway() {
-    const btn = document.getElementById('btnRunStop');
-    btn.disabled = true;
-    showStatus(t('process.starting'), 'success');
+    setButtonLoading('start');
     try {
         const res = await fetch('/api/process/start', { method: 'POST' });
         if (!res.ok) throw new Error(await res.text());
-        const data = await res.json();
-        showStatus(t('process.started', { pid: data.pid || '?' }), 'success');
-        updateRunStopButton(true);
+        // Enter pending state — poll will confirm actual status
+        pendingAction = { type: 'start', retries: 0 };
+        // Speed up polling during pending
+        clearInterval(processPolling);
+        processPolling = setInterval(checkProcessStatus, 1000);
     } catch (e) {
         showStatus(t('process.startFailed') + ': ' + e.message, 'error');
-        btn.disabled = false;
+        updateRunStopButton(false);
     }
 }
 
 async function stopGateway() {
-    const btn = document.getElementById('btnRunStop');
-    btn.disabled = true;
-    showStatus(t('process.stopping'), 'success');
+    setButtonLoading('stop');
     try {
         const res = await fetch('/api/process/stop', { method: 'POST' });
         if (!res.ok) throw new Error(await res.text());
-        showStatus(t('process.stopped'), 'success');
-        updateRunStopButton(false);
+        pendingAction = { type: 'stop', retries: 0 };
+        clearInterval(processPolling);
+        processPolling = setInterval(checkProcessStatus, 1000);
     } catch (e) {
         showStatus(t('process.stopFailed') + ': ' + e.message, 'error');
-        btn.disabled = false;
+        updateRunStopButton(true);
     }
 }
 
