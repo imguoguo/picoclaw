@@ -732,7 +732,7 @@ const i18nData = {
         // Models
         'models.title': 'Models',
         'models.desc': 'Manage LLM model configurations. Models without an API key are grayed out. Only available models can be set as primary.',
-        'models.add': '+ Add Model',
+        'models.add': '+ Add Custom Model',
         'models.noModels': 'No models configured.',
         'models.primary': 'Primary',
         'models.noKey': 'No Key',
@@ -848,7 +848,7 @@ const i18nData = {
         'sidebar.rawjson': '\u539F\u59CB JSON',
         'models.title': '\u6A21\u578B',
         'models.desc': '\u7BA1\u7406 LLM \u6A21\u578B\u914D\u7F6E\u3002\u6CA1\u6709 API Key \u7684\u6A21\u578B\u663E\u793A\u4E3A\u7070\u8272\u3002\u53EA\u6709\u53EF\u7528\u6A21\u578B\u624D\u80FD\u8BBE\u4E3A\u4E3B\u6A21\u578B\u3002',
-        'models.add': '+ \u6DFB\u52A0\u6A21\u578B',
+        'models.add': '+ \u6DFB\u52A0\u81EA\u5B9A\u4E49\u6A21\u578B',
         'models.noModels': '\u6682\u65E0\u6A21\u578B\u914D\u7F6E\u3002',
         'models.primary': '\u4E3B\u6A21\u578B',
         'models.noKey': '\u65E0 Key',
@@ -1292,9 +1292,9 @@ const modelFieldsRequired = [
     { key: 'model_name', labelKey: 'field.modelName', type: 'text', placeholder: 'e.g. gpt-4o', required: true },
     { key: 'model', labelKey: 'field.modelId', type: 'text', placeholder: 'e.g. openai/gpt-4o', required: true, hintKey: 'field.modelIdHint' },
     { key: 'api_key', labelKey: 'field.apiKey', type: 'password', placeholder: 'API key' },
+    { key: 'api_base', labelKey: 'field.apiBase', type: 'text', placeholder: 'https://api.openai.com/v1' },
 ];
 const modelFieldsOptional = [
-    { key: 'api_base', labelKey: 'field.apiBase', type: 'text', placeholder: 'https://api.openai.com/v1' },
     { key: 'proxy', labelKey: 'field.proxy', type: 'text', placeholder: 'http://proxy:port' },
     { key: 'auth_method', labelKey: 'field.authMethod', type: 'text', placeholder: 'oauth / token' },
     { key: 'connect_mode', labelKey: 'field.connectMode', type: 'text', placeholder: 'stdio / grpc' },
@@ -1382,6 +1382,10 @@ function saveModelFromModal() {
         });
     } else {
         configData.model_list.push(obj);
+        // Auto-set as primary model
+        if (!configData.agents) configData.agents = {};
+        if (!configData.agents.defaults) configData.agents.defaults = {};
+        configData.agents.defaults.model_name = obj.model_name;
     }
 
     closeModelModal();
