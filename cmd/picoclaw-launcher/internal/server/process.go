@@ -1,8 +1,10 @@
 package server
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -15,6 +17,9 @@ import (
 
 	"github.com/sipeed/picoclaw/pkg/config"
 )
+
+// gatewayLogs stores captured stdout/stderr from the gateway process launched by the launcher.
+var gatewayLogs = NewLogBuffer(200)
 
 // RegisterProcessAPI registers endpoints to start, stop and check status of the picoclaw gateway.
 func RegisterProcessAPI(mux *http.ServeMux, absPath string) {
@@ -44,14 +49,41 @@ func handleStartGateway(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cmd := exec.Command(execPath, "gateway")
+
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Printf("Failed to create stdout pipe: %v\n", err)
+		http.Error(w, fmt.Sprintf("Failed to start gateway: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		log.Printf("Failed to create stderr pipe: %v\n", err)
+		http.Error(w, fmt.Sprintf("Failed to start gateway: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Clear old logs and increment runID before starting
+	gatewayLogs.Reset()
+
 	if err := cmd.Start(); err != nil {
 		log.Printf("Failed to start picoclaw gateway: %v\n", err)
 		http.Error(w, fmt.Sprintf("Failed to start gateway: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	// We don't Wait() because we want it to run in the background
-	// You may want to detach it from the parent process properly on Windows
+	// Read stdout and stderr into the log buffer
+	go scanPipe(stdoutPipe, gatewayLogs)
+	go scanPipe(stderrPipe, gatewayLogs)
+
+	// Wait for the process to exit in the background to avoid zombies
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			log.Printf("Gateway process exited: %v\n", err)
+		}
+	}()
+
 	log.Printf("Started picoclaw gateway (PID: %d) from %s\n", cmd.Process.Pid, execPath)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -59,6 +91,16 @@ func handleStartGateway(w http.ResponseWriter, r *http.Request) {
 		"status": "ok",
 		"pid":    cmd.Process.Pid,
 	})
+}
+
+// scanPipe reads lines from r and appends them to buf. It returns when r reaches EOF.
+func scanPipe(r io.Reader, buf *LogBuffer) {
+	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024) // up to 1MB per line
+
+	for scanner.Scan() {
+		buf.Append(scanner.Text())
+	}
 }
 
 func handleStopGateway(w http.ResponseWriter, r *http.Request) {
@@ -109,36 +151,83 @@ func handleStatusGateway(w http.ResponseWriter, r *http.Request, absPath string)
 	client := http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Get(url)
 
-	w.Header().Set("Content-Type", "application/json")
+	// Build the response data map
+	data := map[string]any{}
 
 	if err != nil {
-		// If we cannot reach the gateway health endpoint, we assume it is stopped
-		json.NewEncoder(w).Encode(map[string]any{
-			"process_status": "stopped",
-			"error":          err.Error(),
-		})
-		return
-	}
-	defer resp.Body.Close()
+		data["process_status"] = "stopped"
+		data["error"] = err.Error()
+	} else {
+		defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		json.NewEncoder(w).Encode(map[string]any{
-			"process_status": "error",
-			"status_code":    resp.StatusCode,
-		})
-		return
-	}
-
-	var data map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		json.NewEncoder(w).Encode(map[string]any{
-			"process_status": "error",
-			"error":          "invalid response from gateway",
-		})
-		return
+		if resp.StatusCode != http.StatusOK {
+			data["process_status"] = "error"
+			data["status_code"] = resp.StatusCode
+		} else {
+			var healthData map[string]any
+			if decErr := json.NewDecoder(resp.Body).Decode(&healthData); decErr != nil {
+				data["process_status"] = "error"
+				data["error"] = "invalid response from gateway"
+			} else {
+				// Gateway is running and responded properly — merge health data
+				for k, v := range healthData {
+					data[k] = v
+				}
+				data["process_status"] = "running"
+			}
+		}
 	}
 
-	// Gateway is running and responded properly
-	data["process_status"] = "running"
+	// Append log data from the buffer
+	appendLogData(r, data)
+
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(data)
+}
+
+// appendLogData reads log_offset and log_run_id query params from the request and
+// populates the response data map with incremental log lines.
+func appendLogData(r *http.Request, data map[string]any) {
+	clientOffset := 0
+	clientRunID := -1
+
+	if v := r.URL.Query().Get("log_offset"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			clientOffset = n
+		}
+	}
+
+	if v := r.URL.Query().Get("log_run_id"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			clientRunID = n
+		}
+	}
+
+	total := gatewayLogs.Total()
+	runID := gatewayLogs.RunID()
+
+	// If runID is 0 (never reset = never launched from this launcher), report no source
+	if runID == 0 {
+		data["logs"] = []string{}
+		data["log_total"] = 0
+		data["log_run_id"] = 0
+		data["log_source"] = "none"
+		return
+	}
+
+	// If the client's runID doesn't match, send all buffered lines (gateway restarted)
+	offset := clientOffset
+	if clientRunID != runID {
+		offset = 0
+	}
+
+	lines, total, runID := gatewayLogs.LinesSince(offset)
+	if lines == nil {
+		lines = []string{}
+	}
+
+	data["logs"] = lines
+	data["log_total"] = total
+	data["log_run_id"] = runID
+	data["log_source"] = "launcher"
 }

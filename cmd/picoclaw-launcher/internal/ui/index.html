@@ -444,6 +444,31 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
+        /* ── Log panel ──────────────────────────────── */
+        .log-toolbar {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 12px; gap: 8px;
+        }
+        .log-toolbar-right { display: flex; align-items: center; gap: 12px; }
+        .log-autoscroll { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); cursor: pointer; user-select: none; }
+        .log-autoscroll input { accent-color: var(--accent); cursor: pointer; }
+        .log-container {
+            background: var(--bg-editor); border: 1px solid var(--border);
+            border-radius: var(--radius); overflow: hidden; position: relative;
+            min-height: 300px; max-height: calc(100vh - 260px);
+            display: flex; flex-direction: column;
+        }
+        .log-output {
+            flex: 1; overflow-y: auto; padding: 16px 20px;
+            font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.7;
+            color: var(--text-primary); white-space: pre-wrap; word-break: break-all;
+            margin: 0;
+        }
+        .log-placeholder {
+            color: var(--text-muted); font-style: italic;
+            font-family: 'Inter', sans-serif; font-size: 13px;
+        }
+
         /* ── Footer ──────────────────────────────────── */
         .footer {
             padding: 10px 24px; border-top: 1px solid var(--border);
@@ -525,6 +550,7 @@
                     </div>
                 </div>
                 <div class="sidebar-divider"></div>
+                <div class="sidebar-item standalone" data-panel="panelLogs" data-i18n="sidebar.logs">Logs</div>
                 <div class="sidebar-item standalone" data-panel="panelRawJson" data-i18n="sidebar.rawjson">Raw JSON</div>
             </nav>
 
@@ -589,6 +615,26 @@
                 <div class="content-panel" id="panelCh_qq"></div>
                 <div class="content-panel" id="panelCh_onebot"></div>
                 <div class="content-panel" id="panelCh_maixcam"></div>
+
+                <!-- Logs Panel -->
+                <div class="content-panel" id="panelLogs">
+                    <div class="panel-title" data-i18n="logs.title">Gateway Logs</div>
+                    <div class="panel-desc" data-i18n="logs.desc">Real-time output from the gateway process.</div>
+                    <div class="log-toolbar">
+                        <div>
+                            <button class="btn btn-sm" onclick="clearLogDisplay()" data-i18n="logs.clear">Clear Display</button>
+                        </div>
+                        <div class="log-toolbar-right">
+                            <label class="log-autoscroll">
+                                <input type="checkbox" id="logAutoScrollCb" checked onchange="logAutoScrollEnabled=this.checked">
+                                <span data-i18n="logs.autoScroll">Auto-scroll</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="log-container">
+                        <pre class="log-output" id="logOutput"><span class="log-placeholder" id="logPlaceholder" data-i18n="logs.noLogs">No logs available. Start the gateway to see output here.</span></pre>
+                    </div>
+                </div>
 
                 <!-- Raw JSON Panel -->
                 <div class="content-panel" id="panelRawJson">
@@ -681,6 +727,7 @@ const i18nData = {
         'sidebar.auth': 'Auth',
         'sidebar.channels': 'Channels',
         'sidebar.feishu': 'Feishu',
+        'sidebar.logs': 'Logs',
         'sidebar.rawjson': 'Raw JSON',
         // Models
         'models.title': 'Models',
@@ -739,6 +786,13 @@ const i18nData = {
         'ch.mentionOnly': 'Mention Only',
         'ch.mentionOnlyHint': 'Only respond when mentioned',
         'ch.groupTrigger': 'Group Trigger Prefixes',
+        // Logs
+        'logs.title': 'Gateway Logs',
+        'logs.desc': 'Real-time output from the gateway process.',
+        'logs.clear': 'Clear Display',
+        'logs.autoScroll': 'Auto-scroll',
+        'logs.noLogs': 'No logs available. Start the gateway to see output here.',
+        'logs.noCapture': 'Logs are not available. The gateway was not started from this launcher.',
         // Raw JSON
         'raw.title': 'Raw JSON',
         'raw.desc': 'Directly edit the configuration file.',
@@ -773,6 +827,7 @@ const i18nData = {
         'process.stopFailed': 'Failed to stop gateway',
         'process.needModel': 'At least one model with API key is required',
         'process.needChannel': 'At least one channel must be enabled',
+        'process.checkLogs': 'Check Logs for details',
         'process.needBoth': 'Need model with API key and enabled channel to start',
     },
     zh: {
@@ -789,6 +844,7 @@ const i18nData = {
         'sidebar.auth': '\u8BA4\u8BC1',
         'sidebar.channels': '\u901A\u9053',
         'sidebar.feishu': '\u98DE\u4E66',
+        'sidebar.logs': '\u65E5\u5FD7',
         'sidebar.rawjson': '\u539F\u59CB JSON',
         'models.title': '\u6A21\u578B',
         'models.desc': '\u7BA1\u7406 LLM \u6A21\u578B\u914D\u7F6E\u3002\u6CA1\u6709 API Key \u7684\u6A21\u578B\u663E\u793A\u4E3A\u7070\u8272\u3002\u53EA\u6709\u53EF\u7528\u6A21\u578B\u624D\u80FD\u8BBE\u4E3A\u4E3B\u6A21\u578B\u3002',
@@ -843,6 +899,12 @@ const i18nData = {
         'ch.mentionOnly': '\u4EC5\u63D0\u53CA\u65F6\u54CD\u5E94',
         'ch.mentionOnlyHint': '\u53EA\u5728\u88AB @\u63D0\u53CA\u65F6\u56DE\u590D',
         'ch.groupTrigger': '\u7FA4\u804A\u89E6\u53D1\u524D\u7F00',
+        'logs.title': 'Gateway \u65E5\u5FD7',
+        'logs.desc': 'Gateway \u8FDB\u7A0B\u7684\u5B9E\u65F6\u8F93\u51FA\u3002',
+        'logs.clear': '\u6E05\u9664\u663E\u793A',
+        'logs.autoScroll': '\u81EA\u52A8\u6EDA\u52A8',
+        'logs.noLogs': '\u6682\u65E0\u65E5\u5FD7\u3002\u542F\u52A8 Gateway \u540E\u53EF\u5728\u6B64\u67E5\u770B\u8F93\u51FA\u3002',
+        'logs.noCapture': '\u65E5\u5FD7\u4E0D\u53EF\u7528\u3002Gateway \u4E0D\u662F\u901A\u8FC7\u6B64\u542F\u52A8\u5668\u542F\u52A8\u7684\u3002',
         'raw.title': '\u539F\u59CB JSON',
         'raw.desc': '\u76F4\u63A5\u7F16\u8F91\u914D\u7F6E\u6587\u4EF6\u3002',
         'raw.reload': '\u91CD\u65B0\u52A0\u8F7D',
@@ -874,6 +936,7 @@ const i18nData = {
         'process.stopFailed': 'Gateway \u505C\u6B62\u5931\u8D25',
         'process.needModel': '\u81F3\u5C11\u9700\u8981\u4E00\u4E2A\u914D\u7F6E\u4E86 API Key \u7684\u6A21\u578B',
         'process.needChannel': '\u81F3\u5C11\u9700\u8981\u542F\u7528\u4E00\u4E2A\u901A\u9053',
+        'process.checkLogs': '\u8BF7\u67E5\u770B\u65E5\u5FD7\u4E86\u89E3\u8BE6\u60C5',
         'process.needBoth': '\u9700\u8981\u914D\u7F6E\u6A21\u578B\u548C\u542F\u7528\u901A\u9053\u624D\u80FD\u542F\u52A8',
     }
 };
@@ -1740,10 +1803,12 @@ function setButtonLoading(actionType) {
 async function checkProcessStatus() {
     let running = false;
     try {
-        const res = await fetch('/api/process/status');
+        const params = new URLSearchParams({ log_offset: logOffset, log_run_id: logRunID });
+        const res = await fetch('/api/process/status?' + params);
         if (res.ok) {
             const data = await res.json();
             running = data.process_status === 'running';
+            handleLogData(data);
         }
     } catch (e) { /* treat as not running */ }
 
@@ -1757,7 +1822,8 @@ async function checkProcessStatus() {
         } else {
             pendingAction.retries++;
             if (pendingAction.retries >= MAX_RETRIES) {
-                const msg = pendingAction.type === 'start' ? t('process.startFailed') : t('process.stopFailed');
+                let msg = pendingAction.type === 'start' ? t('process.startFailed') : t('process.stopFailed');
+                if (pendingAction.type === 'start') msg += ' — ' + t('process.checkLogs');
                 showStatus(msg, 'error');
                 pendingAction = null;
                 restoreNormalPolling();
@@ -1792,7 +1858,7 @@ async function startGateway() {
         const res = await fetch('/api/process/start', { method: 'POST' });
         if (!res.ok) throw new Error(await res.text());
     } catch (e) {
-        showStatus(t('process.startFailed') + ': ' + e.message, 'error');
+        showStatus(t('process.startFailed') + ': ' + e.message + ' — ' + t('process.checkLogs'), 'error');
         pendingAction = null;
         restoreNormalPolling();
         updateRunStopButton(false);
@@ -1822,6 +1888,82 @@ document.getElementById('btnRunStop').addEventListener('click', () => {
 // Poll status every 5 seconds
 checkProcessStatus();
 processPolling = setInterval(checkProcessStatus, 5000);
+
+// ── Log Panel ───────────────────────────────────────
+let logOffset = 0;
+let logRunID = -1;
+let logAutoScrollEnabled = true;
+let logHasContent = false;
+
+function handleLogData(data) {
+    const output = document.getElementById('logOutput');
+    const placeholder = document.getElementById('logPlaceholder');
+    if (!output) return;
+
+    const serverRunID = data.log_run_id;
+    const serverSource = data.log_source;
+    const lines = data.logs || [];
+    const total = data.log_total || 0;
+
+    // External gateway (not launched by us) — show appropriate placeholder
+    if (serverSource === 'none') {
+        if (!logHasContent) {
+            if (placeholder) {
+                placeholder.textContent = gatewayRunning ? t('logs.noCapture') : t('logs.noLogs');
+                placeholder.style.display = '';
+            }
+        }
+        return;
+    }
+
+    // Gateway restarted — clear display
+    if (serverRunID !== logRunID && logRunID !== -1) {
+        output.textContent = '';
+        logHasContent = false;
+    }
+    logRunID = serverRunID;
+
+    // Append new lines
+    if (lines.length > 0) {
+        // Hide placeholder
+        if (placeholder) placeholder.style.display = 'none';
+
+        // Remove placeholder node text if it's still the only content
+        if (!logHasContent) {
+            output.textContent = '';
+        }
+
+        output.textContent += lines.join('\n') + '\n';
+        logHasContent = true;
+
+        // Auto-scroll
+        if (logAutoScrollEnabled) {
+            output.scrollTop = output.scrollHeight;
+        }
+    }
+
+    logOffset = total;
+
+    // Show placeholder if we've never had content
+    if (!logHasContent && placeholder) {
+        placeholder.textContent = t('logs.noLogs');
+        placeholder.style.display = '';
+    }
+}
+
+function clearLogDisplay() {
+    const output = document.getElementById('logOutput');
+    const placeholder = document.getElementById('logPlaceholder');
+    if (output) output.textContent = '';
+    logHasContent = false;
+    // Re-add placeholder
+    if (output && placeholder) {
+        output.appendChild(placeholder);
+        placeholder.textContent = t('logs.noLogs');
+        placeholder.style.display = '';
+    }
+    // Keep logOffset/logRunID so we don't re-fetch old lines
+}
 
 // ── Utilities ───────────────────────────────────────
 function esc(s) {
