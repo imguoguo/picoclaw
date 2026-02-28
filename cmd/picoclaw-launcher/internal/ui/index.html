@@ -1156,19 +1156,41 @@ function renderModels() {
         ? (configData.agents.defaults.model_name || configData.agents.defaults.model || '')
         : '';
 
+    // Build index array sorted: primary first, then the rest in original order
+    const indices = configData.model_list.map((_, i) => i);
+    indices.sort((a, b) => {
+        const ap = configData.model_list[a].model_name === primaryModelName ? 0 : 1;
+        const bp = configData.model_list[b].model_name === primaryModelName ? 0 : 1;
+        return ap !== bp ? ap - bp : a - b;
+    });
+
+    function isModelAvailable(m) {
+        if (m.api_key) return true;
+        if (m.auth_method === 'oauth') {
+            // Check if the corresponding provider has active OAuth
+            const protocol = m.model ? m.model.split('/')[0] : '';
+            const providerName = protocol === 'google-antigravity' ? 'google-antigravity' : protocol;
+            const authInfo = authProviderMap[providerName];
+            return !!(authInfo && authInfo.status === 'active');
+        }
+        if (m.auth_method) return true; // other auth methods (e.g. token-based)
+        return false;
+    }
+
     let html = '';
-    configData.model_list.forEach((m, idx) => {
-        const hasKey = !!(m.api_key || m.auth_method);
+    indices.forEach(idx => {
+        const m = configData.model_list[idx];
+        const available = isModelAvailable(m);
         const isPrimary = m.model_name === primaryModelName;
         const protocol = m.model ? m.model.split('/')[0] : '';
 
-        html += `<div class="model-card ${hasKey ? '' : 'unavailable'}">`;
+        html += `<div class="model-card ${available ? '' : 'unavailable'}">`;
         html += `<div class="model-card-head">`;
         html += `<div class="model-name">${esc(m.model_name)}`;
         if (protocol) html += ` <span class="model-protocol">${esc(protocol)}</span>`;
         html += `</div>`;
         if (isPrimary) html += `<span class="badge-primary">${t('models.primary')}</span>`;
-        else if (!hasKey) html += `<span class="badge-nokey">${t('models.noKey')}</span>`;
+        else if (!available) html += `<span class="badge-nokey">${t('models.noKey')}</span>`;
         html += `</div>`;
 
         html += `<div class="model-detail"><strong>Model:</strong> ${esc(m.model || '-')}</div>`;
@@ -1179,7 +1201,7 @@ function renderModels() {
 
         html += `<div class="model-actions">`;
         html += `<button class="btn btn-sm" onclick="showEditModelModal(${idx})">${t('edit')}</button>`;
-        if (hasKey && !isPrimary) {
+        if (available && !isPrimary) {
             html += `<button class="btn btn-sm btn-success" onclick="setPrimaryModel(${idx})">${t('models.setPrimary')}</button>`;
         }
         html += `<button class="btn btn-sm btn-danger" onclick="deleteModel(${idx})">${t('delete')}</button>`;
@@ -1454,12 +1476,17 @@ function saveChannelForm(chKey) {
 }
 
 // ── Auth API ────────────────────────────────────────
+let authProviderMap = {}; // { 'openai': { status: 'active', ... }, ... }
+
 async function loadAuthStatus() {
     try {
         const res = await fetch('/api/auth/status');
         if (!res.ok) return;
         const data = await res.json();
-        renderAuthStatus(data.providers || [], data.pending_device);
+        const providers = data.providers || [];
+        authProviderMap = {};
+        providers.forEach(p => { authProviderMap[p.provider] = p; });
+        renderAuthStatus(providers, data.pending_device);
     } catch (e) {
         console.error('Failed to load auth status:', e);
     }
@@ -1768,6 +1795,7 @@ function maskKey(key) {
 // ── Init ────────────────────────────────────────────
 applyI18n();
 loadConfig();
+loadAuthStatus().then(() => renderModels());
 
 if (window.location.hash === '#auth') {
     document.querySelector('[data-panel="panelAuth"]').click();
