@@ -1,4 +1,4 @@
-# PicoClaw Config
+# PicoClaw Launcher
 
 PicoClaw 的独立 Web 配置编辑器，提供可视化 JSON 配置编辑和 OAuth Provider 认证管理。
 
@@ -16,16 +16,16 @@ PicoClaw 的独立 Web 配置编辑器，提供可视化 JSON 配置编辑和 OA
 
 ```bash
 # 编译
-go build -o picoclaw-config ./cmd/picoclaw-config/
+go build -o picoclaw-launcher ./cmd/picoclaw-launcher/
 
 # 运行（使用默认配置路径 ~/.picoclaw/config.json）
-./picoclaw-config
+./picoclaw-launcher
 
 # 指定配置文件
-./picoclaw-config ./config.json
+./picoclaw-launcher ./config.json
 
 # 允许局域网访问
-./picoclaw-config -public
+./picoclaw-launcher -public
 ```
 
 启动后在浏览器中打开 `http://localhost:18800`。
@@ -33,7 +33,7 @@ go build -o picoclaw-config ./cmd/picoclaw-config/
 ## 命令行参数
 
 ```
-Usage: picoclaw-config [options] [config.json]
+Usage: picoclaw-launcher [options] [config.json]
 
 Arguments:
   config.json    配置文件路径（默认: ~/.picoclaw/config.json）
@@ -41,54 +41,6 @@ Arguments:
 Options:
   -public        监听所有网络接口（0.0.0.0），允许局域网设备访问
 ```
-
-## 前端
-
-前端是单个 HTML 文件（`internal/ui/index.html`），通过 `//go:embed` 嵌入到二进制中。使用原生 JS，无外部框架依赖。
-
-### 布局
-
-```
-┌──────────────────────────────────────────────────────────┐
-│  Logo  PicoClaw Config       [🎨] [EN/中] [▶ 启动/停止]  │
-├──────────────┬───────────────────────────────────────────┤
-│  ▾ 提供商     │   内容面板                                │
-│    模型       │   （根据侧边栏选中项渲染）                  │
-│    认证       │                                           │
-│  ▾ 通道       │                                           │
-│    Telegram  │                                           │
-│    Discord   │                                           │
-│    ...       │                                           │
-│  ──────────  │                                           │
-│  原始 JSON    │                                           │
-├──────────────┴───────────────────────────────────────────┤
-│  Footer                                                  │
-└──────────────────────────────────────────────────────────┘
-```
-
-### 数据流
-
-1. 页面加载 → `GET /api/config` → 存入 JS 全局变量 `configData`
-2. 点击侧边栏 → 根据 `configData` 渲染对应面板
-3. 用户修改并保存 → 合并表单数据回 `configData` → `PUT /api/config`
-4. 认证面板使用 `/api/auth/*` 端点
-5. 启动/停止按钮使用 `/api/process/*` 端点
-
-### 国际化
-
-- 翻译字典：`i18nData.en` / `i18nData.zh`
-- `t(key, params)` — 运行时翻译查找，支持 `{param}` 参数替换
-- 静态 HTML 使用 `data-i18n` 属性，由 `applyI18n()` 更新
-- 语言偏好保存在 `localStorage('picoclaw-lang')`，首次访问自动检测浏览器语言
-
-### 主题
-
-通过 Header 按钮循环切换三种模式：**跟随系统**（默认）→ **亮色** → **暗色**
-
-- CSS 变量通过 `[data-theme="light"]` / `[data-theme="dark"]` 选择器按主题定义
-- `<head>` 中的内联 `<script>` 在渲染前应用主题，避免闪烁
-- 监听 `prefers-color-scheme` 媒体查询，实时响应系统主题变化
-- 偏好保存在 `localStorage('picoclaw-theme')`
 
 ## API 文档
 
@@ -268,7 +220,8 @@ OAuth Browser 回调端点（Google Antigravity 专用），由 OAuth Provider �
 - `code` — 授权码
 
 认证成功后重定向到 `/#auth`。
-## Process API
+
+### Process API
 
 #### GET /api/process/status
 
@@ -327,5 +280,5 @@ OAuth Browser 回调端点（Google Antigravity 专用），由 OAuth Provider �
 ## 测试
 
 ```bash
-go test -v ./cmd/picoclaw-config/
+go test -v ./cmd/picoclaw-launcher/
 ```

@@ -1,13 +1,13 @@
-// PicoClaw Configuration Editor - Standalone HTTP service
+// PicoClaw Launcher - Standalone HTTP service
 //
 // Provides a web-based JSON editor for picoclaw config files,
 // with OAuth provider authentication support.
 //
 // Usage:
 //
-//	go build -o picoclaw-config ./cmd/picoclaw-config/
-//	./picoclaw-config [config.json]
-//	./picoclaw-config -public config.json
+//	go build -o picoclaw-launcher ./cmd/picoclaw-launcher/
+//	./picoclaw-launcher [config.json]
+//	./picoclaw-launcher -public config.json
 
 package main
 
@@ -24,7 +24,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/sipeed/picoclaw/cmd/picoclaw-config/internal/server"
+	"github.com/sipeed/picoclaw/cmd/picoclaw-launcher/internal/server"
 )
 
 //go:embed internal/ui/index.html
@@ -33,7 +33,7 @@ var staticFiles embed.FS
 func main() {
 	public := flag.Bool("public", false, "Listen on all interfaces (0.0.0.0) instead of localhost only")
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "PicoClaw Config Editor - A web-based configuration editor\n\n")
+		fmt.Fprintf(os.Stderr, "PicoClaw Launcher - A web-based configuration editor\n\n")
 		fmt.Fprintf(os.Stderr, "Usage: %s [options] [config.json]\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Arguments:\n")
 		fmt.Fprintf(os.Stderr, "  config.json    Path to the configuration file (default: ~/.picoclaw/config.json)\n\n")
@@ -80,7 +80,7 @@ func main() {
 
 	// Print startup banner
 	fmt.Println("=============================================")
-	fmt.Println("  PicoClaw Config Editor")
+	fmt.Println("  PicoClaw Launcher")
 	fmt.Println("=============================================")
 	fmt.Printf("  Config file : %s\n", absPath)
 	fmt.Printf("  Listen addr : %s\n\n", addr)
