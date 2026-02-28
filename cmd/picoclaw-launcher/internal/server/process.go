@@ -64,7 +64,7 @@ func handleStartGateway(w http.ResponseWriter, r *http.Request) {
 func handleStopGateway(w http.ResponseWriter, r *http.Request) {
 	var err error
 	if runtime.GOOS == "windows" {
-		// Kill via taskkill finding picoclaw.exe (though it might kill this config tool if it's named picoclaw-config.exe...? No, /IM does exact match usually, but just to be safe let's stop exactly picoclaw.exe)
+		// Kill via taskkill finding picoclaw.exe (though it might kill this config tool if it's named picoclaw-launcher.exe...? No, /IM does exact match usually, but just to be safe let's stop exactly picoclaw.exe)
 		// Alternatively, we use powershell to kill processes with commandline containing 'gateway'
 		psCmd := `Get-WmiObject Win32_Process | Where-Object { $_.CommandLine -match 'picoclaw.*gateway' } | ForEach-Object { Stop-Process $_.ProcessId -Force }`
 		err = exec.Command("powershell", "-Command", psCmd).Run()
