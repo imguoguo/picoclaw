@@ -72,8 +72,8 @@ func NewTelegramChannel(cfg *config.Config, bus *bus.MessageBus) (*TelegramChann
 		}))
 	}
 
-	if telegramCfg.BaseURL != "" {
-		opts = append(opts, telego.WithAPIServer(telegramCfg.BaseURL))
+	if baseURL := strings.TrimRight(strings.TrimSpace(telegramCfg.BaseURL), "/"); baseURL != "" {
+		opts = append(opts, telego.WithAPIServer(baseURL))
 	}
 
 	bot, err := telego.NewBot(telegramCfg.Token, opts...)
