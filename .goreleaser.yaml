@@ -150,18 +150,6 @@ nfpms:
       - deb
     bindir: /usr/bin
 
-blobs:
-  - provider: s3
-    endpoint: "https://tos-s3-cn-beijing.volces.com"
-    bucket: "picoclaw-downloads"
-    region: "cn-beijing"
-    directory: "{{ .Tag }}"
-  - provider: s3
-    endpoint: "https://tos-s3-cn-beijing.volces.com"
-    bucket: "picoclaw-downloads"
-    region: "cn-beijing"
-    directory: "latest"
-
 changelog:
   sort: asc
   filters:

@@ -91,9 +91,32 @@ jobs:
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
           DOCKERHUB_IMAGE_NAME: ${{ vars.DOCKERHUB_REPOSITORY }}
           GOVERSION: ${{ steps.setup-go.outputs.go-version }}
+
+      - name: Upload release artifacts to Volcengine TOS
+        env:
           AWS_ACCESS_KEY_ID: ${{ secrets.VOLC_TOS_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.VOLC_TOS_SECRET_KEY }}
           AWS_DEFAULT_REGION: cn-beijing
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          TOS_ENDPOINT="https://picoclaw-downloads.tos-s3-cn-beijing.volces.com"
+          # Upload to versioned directory
+          aws s3 sync ./dist/ "s3://picoclaw-downloads/${RELEASE_TAG}/" \
+            --endpoint-url "$TOS_ENDPOINT" \
+            --exclude "*" \
+            --include "*.tar.gz" \
+            --include "*.zip" \
+            --include "*.rpm" \
+            --include "*.deb"
+          # Upload to latest (overwrite)
+          aws s3 sync ./dist/ "s3://picoclaw-downloads/latest/" \
+            --endpoint-url "$TOS_ENDPOINT" \
+            --exclude "*" \
+            --include "*.tar.gz" \
+            --include "*.zip" \
+            --include "*.rpm" \
+            --include "*.deb" \
+            --delete
 
       - name: Apply release flags
         shell: bash
