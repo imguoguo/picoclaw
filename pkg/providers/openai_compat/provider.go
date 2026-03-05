@@ -67,6 +67,10 @@ func NewProvider(apiKey, apiBase, proxy string, opts ...Option) *Provider {
 		} else {
 			log.Printf("openai_compat: invalid proxy URL %q: %v", proxy, err)
 		}
+	} else {
+		client.Transport = &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+		}
 	}
 
 	p := &Provider{

@@ -91,6 +91,9 @@ jobs:
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
           DOCKERHUB_IMAGE_NAME: ${{ vars.DOCKERHUB_REPOSITORY }}
           GOVERSION: ${{ steps.setup-go.outputs.go-version }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.VOLC_TOS_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.VOLC_TOS_SECRET_KEY }}
+          AWS_DEFAULT_REGION: cn-beijing
 
       - name: Apply release flags
         shell: bash
