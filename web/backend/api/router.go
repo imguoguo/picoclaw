@@ -1,16 +1,24 @@
 package api
 
-import "net/http"
+import (
+	"net/http"
+	"sync"
+)
 
 // Handler serves HTTP API requests.
 type Handler struct {
 	configPath string
+	oauthMu    sync.Mutex
+	oauthFlows map[string]*oauthFlow
+	oauthState map[string]string
 }
 
 // NewHandler creates an instance of the API handler.
 func NewHandler(configPath string) *Handler {
 	return &Handler{
 		configPath: configPath,
+		oauthFlows: make(map[string]*oauthFlow),
+		oauthState: make(map[string]string),
 	}
 }
 
@@ -27,6 +35,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 
 	// Session history
 	h.registerSessionRoutes(mux)
+
+	// OAuth login and credential management
+	h.registerOAuthRoutes(mux)
 
 	// Model list management
 	h.registerModelRoutes(mux)

@@ -73,6 +73,70 @@
     "cancel": "取消",
     "save": "保存"
   },
+  "credentials": {
+    "description": "管理已支持服务商的 OAuth 与 Token 凭据。",
+    "loading": "正在加载凭据...",
+    "providers": {
+      "openai": {
+        "description": "支持浏览器 OAuth、设备码和 Token 登录。"
+      },
+      "anthropic": {
+        "description": "使用 Token 登录 Claude。"
+      },
+      "antigravity": {
+        "description": "使用浏览器 OAuth 登录 Google Cloud Code Assist。"
+      }
+    },
+    "status": {
+      "connected": "已连接",
+      "needsRefresh": "即将过期",
+      "expired": "已过期",
+      "notLoggedIn": "未登录"
+    },
+    "actions": {
+      "browser": "浏览器 OAuth",
+      "deviceCode": "设备码",
+      "saveToken": "保存",
+      "logout": "退出登录"
+    },
+    "logoutDialog": {
+      "title": "确认退出登录？",
+      "description": "这将删除 {{provider}} 的已保存凭据。"
+    },
+    "fields": {
+      "openaiToken": "OpenAI Token",
+      "anthropicToken": "Anthropic Token"
+    },
+    "labels": {
+      "account": "账号",
+      "email": "邮箱",
+      "project": "项目"
+    },
+    "errors": {
+      "loadFailed": "加载凭据失败",
+      "flowFailed": "查询授权流程失败",
+      "loginFailed": "登录失败",
+      "logoutFailed": "退出登录失败",
+      "invalidBrowserResponse": "浏览器登录响应无效",
+      "invalidDeviceResponse": "设备码响应无效",
+      "popupBlocked": "无法打开新标签页，请允许弹窗后重试。"
+    },
+    "flow": {
+      "current": "当前授权状态",
+      "pending": "等待授权中...",
+      "success": "认证成功",
+      "error": "认证失败",
+      "expired": "授权会话已过期"
+    },
+    "device": {
+      "title": "OpenAI 设备码登录",
+      "description": "请打开验证页面并输入下方代码，此页面会自动刷新授权状态。",
+      "code": "用户代码",
+      "url": "验证地址",
+      "polling": "正在轮询登录状态...",
+      "open": "打开验证页面"
+    }
+  },
   "models": {
     "description": "为 AI 服务商配置 API Key。只有已配置的模型可用于对话。",
     "loadError": "加载模型列表失败",
