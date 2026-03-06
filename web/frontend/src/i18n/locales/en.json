@@ -5,6 +5,7 @@
     "models": "Models",
     "credentials": "Credentials",
     "services": "Services",
+    "channels_group": "Channels",
     "channels": "Channels",
     "config": "Config",
     "logs": "Logs"

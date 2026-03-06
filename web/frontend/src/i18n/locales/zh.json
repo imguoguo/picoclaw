@@ -5,6 +5,7 @@
     "models": "模型",
     "credentials": "凭据",
     "services": "服务",
+    "channels_group": "频道",
     "channels": "频道",
     "config": "配置",
     "logs": "日志"

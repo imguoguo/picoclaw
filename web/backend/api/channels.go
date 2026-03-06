@@ -167,8 +167,9 @@ func isValidChannel(name string) bool {
 }
 
 // extractChannelInfo returns enabled, configured status and masked config for a channel.
-func extractChannelInfo(name string, ch *config.ChannelsConfig) (enabled, configured bool, cfg map[string]any) {
-	cfg = make(map[string]any)
+func extractChannelInfo(name string, ch *config.ChannelsConfig) (bool, bool, map[string]any) {
+	var enabled, configured bool
+	cfg := make(map[string]any)
 	switch name {
 	case "telegram":
 		c := ch.Telegram
@@ -320,7 +321,7 @@ func extractChannelInfo(name string, ch *config.ChannelsConfig) (enabled, config
 		cfg["port"] = c.Port
 		cfg["allow_from"] = []string(c.AllowFrom)
 	}
-	return
+	return enabled, configured, cfg
 }
 
 // setChannelEnabled sets the enabled flag for a channel.

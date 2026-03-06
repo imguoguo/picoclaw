@@ -176,7 +176,7 @@ export function EditChannelSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-1 py-4">{renderForm()}</div>
+        <div className="flex-1 overflow-y-auto px-4 py-4">{renderForm()}</div>
 
         {serverError && (
           <p className="px-1 text-sm text-red-500">{serverError}</p>

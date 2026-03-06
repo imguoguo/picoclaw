@@ -44,10 +44,16 @@ const navGroups = [
     ],
   },
   {
-    label: "navigation.services",
+    label: "navigation.channels_group",
     defaultOpen: true,
     items: [
       { title: "navigation.channels", url: "/channels", icon: IconPlug },
+    ],
+  },
+  {
+    label: "navigation.services",
+    defaultOpen: true,
+    items: [
       { title: "navigation.config", url: "/config", icon: IconSettings },
       { title: "navigation.logs", url: "/logs", icon: IconListDetails },
     ],
