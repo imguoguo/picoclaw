@@ -44,6 +44,7 @@ tasks/
 
 # Added by goreleaser init:
 dist/
+*.vite/
 
 # Windows Application Icon/Resource
 *.syso
