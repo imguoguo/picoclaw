@@ -196,7 +196,7 @@ func registerSharedTools(
 		// Spawn tool with allowlist checker
 		if cfg.Tools.IsToolEnabled("spawn") {
 			if cfg.Tools.IsToolEnabled("subagent") {
-				subagentManager := tools.NewSubagentManager(provider, agent.Model, agent.Workspace, msgBus)
+				subagentManager := tools.NewSubagentManager(provider, agent.Model, agent.Workspace)
 				subagentManager.SetLLMOptions(agent.MaxTokens, agent.Temperature)
 				spawnTool := tools.NewSpawnTool(subagentManager)
 				currentAgentID := agentID
@@ -1087,15 +1087,33 @@ func (al *AgentLoop) runLLMIteration(
 						"iteration": iteration,
 					})
 
-				// Create async callback for tools that implement AsyncExecutor
+				// Create async callback for tools that implement AsyncTool.
+				// When background work completes, this callback delivers the result
+				// back to the user and re-injects it into the agent loop via the bus.
 				asyncCallback := func(callbackCtx context.Context, result *tools.ToolResult) {
-					if !result.Silent && result.ForUser != "" {
-						logger.InfoCF("agent", "Async tool completed, agent will handle notification",
-							map[string]any{
-								"tool":        tc.Name,
-								"content_len": len(result.ForUser),
-							})
+					if result == nil {
+						return
 					}
+					logger.InfoCF("agent", "Async tool completed, delivering result",
+						map[string]any{
+							"tool":        tc.Name,
+							"content_len": len(result.ForLLM),
+						})
+					// Deliver result to user
+					if !result.Silent && result.ForUser != "" && opts.SendResponse {
+						al.bus.PublishOutbound(callbackCtx, bus.OutboundMessage{
+							Channel: opts.Channel,
+							ChatID:  opts.ChatID,
+							Content: result.ForUser,
+						})
+					}
+					// Re-inject into agent loop as a system message
+					al.bus.PublishInbound(callbackCtx, bus.InboundMessage{
+						Channel:  "system",
+						SenderID: fmt.Sprintf("async:%s", tc.Name),
+						ChatID:   fmt.Sprintf("%s:%s", opts.Channel, opts.ChatID),
+						Content:  result.ForLLM,
+					})
 				}
 
 				toolResult := agent.Tools.ExecuteWithContext(
