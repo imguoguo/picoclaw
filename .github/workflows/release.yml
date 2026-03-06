@@ -99,7 +99,9 @@ jobs:
           AWS_DEFAULT_REGION: cn-beijing
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
-          TOS_ENDPOINT="https://picoclaw-downloads.tos-s3-cn-beijing.volces.com"
+          # Configure AWS CLI for Volcengine TOS (virtual-hosted style required)
+          aws configure set default.s3.addressing_style virtual
+          TOS_ENDPOINT="https://tos-s3-cn-beijing.volces.com"
           # Upload to versioned directory
           aws s3 sync ./dist/ "s3://picoclaw-downloads/${RELEASE_TAG}/" \
             --endpoint-url "$TOS_ENDPOINT" \
