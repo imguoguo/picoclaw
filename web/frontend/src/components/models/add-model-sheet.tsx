@@ -3,6 +3,12 @@ import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { addModel, setDefaultModel } from "@/api/models"
+import {
+  AdvancedSection,
+  Field,
+  KeyInput,
+  SwitchCardField,
+} from "@/components/shared-form"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -13,9 +19,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { Switch } from "@/components/ui/switch"
-
-import { AdvancedSection, Field, KeyInput } from "./shared-form"
 
 interface AddForm {
   modelName: string
@@ -187,21 +190,12 @@ export function AddModelSheet({ open, onClose, onSaved }: AddModelSheetProps) {
               />
             </Field>
 
-            <div className="space-y-2">
-              <div className="border-input flex h-9 items-center justify-between rounded-md border px-2.5">
-                <span className="text-sm font-medium">
-                  {t("models.defaultOnSave.label")}
-                </span>
-                <Switch
-                  checked={setAsDefault}
-                  onCheckedChange={setSetAsDefault}
-                  aria-label={t("models.defaultOnSave.label")}
-                />
-              </div>
-              <p className="text-muted-foreground text-xs">
-                {t("models.defaultOnSave.description")}
-              </p>
-            </div>
+            <SwitchCardField
+              label={t("models.defaultOnSave.label")}
+              hint={t("models.defaultOnSave.description")}
+              checked={setAsDefault}
+              onCheckedChange={setSetAsDefault}
+            />
 
             <AdvancedSection>
               <Field

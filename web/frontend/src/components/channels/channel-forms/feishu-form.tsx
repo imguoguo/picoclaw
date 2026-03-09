@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next"
 
 import type { ChannelConfig } from "@/api/channels"
 import { maskedSecretPlaceholder } from "@/components/channels/channel-forms/secret-placeholder"
-import { Field, KeyInput } from "@/components/models/shared-form"
+import { Field, KeyInput } from "@/components/shared-form"
 import { Input } from "@/components/ui/input"
 
 interface FeishuFormProps {
