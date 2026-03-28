@@ -17,8 +17,8 @@ func newTestDingTalkChannel(t *testing.T, cfg config.DingTalkConfig) (*DingTalkC
 	if cfg.ClientID == "" {
 		cfg.ClientID = "test-client-id"
 	}
-	if cfg.ClientSecret() == "" {
-		cfg.SetClientSecret("test-client-secret")
+	if cfg.ClientSecret.String() == "" {
+		cfg.ClientSecret.Set("test-client-secret")
 	}
 
 	msgBus := bus.NewMessageBus()
