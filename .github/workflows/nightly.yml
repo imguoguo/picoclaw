@@ -81,7 +81,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
-          distribution: goreleaser
+          distribution: goreleaser-cross
           version: ~> v2
           args: release --clean
         env:
