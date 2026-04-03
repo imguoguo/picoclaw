@@ -82,6 +82,20 @@ builds:
     gomips:
       - softfloat
     main: ./web/backend
+    overrides:
+      # Enable CGO on darwin for systray support (fyne.io/systray requires Cocoa via cgo)
+      - goos: darwin
+        goarch: amd64
+        env:
+          - CGO_ENABLED=1
+          - CC=o64-clang
+          - CXX=o64-clang++
+      - goos: darwin
+        goarch: arm64
+        env:
+          - CGO_ENABLED=1
+          - CC=oa64-clang
+          - CXX=oa64-clang++
     ignore:
       - goos: windows
         goarch: arm
