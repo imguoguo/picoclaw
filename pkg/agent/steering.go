@@ -324,26 +324,14 @@ func (al *AgentLoop) agentForSession(sessionKey string) *AgentInstance {
 		if !ok || agent == nil {
 			continue
 		}
-		scopeReader, ok := agent.Sessions.(interface {
-			GetSessionScope(sessionKey string) *session.SessionScope
-		})
-		if !ok {
+		resolvedAgentID := session.ResolveAgentID(agent.Sessions, sessionKey)
+		if resolvedAgentID == "" {
 			continue
 		}
-		scope := scopeReader.GetSessionScope(sessionKey)
-		if scope == nil || strings.TrimSpace(scope.AgentID) == "" {
-			continue
-		}
-		if scopedAgent, ok := registry.GetAgent(scope.AgentID); ok {
+		if scopedAgent, ok := registry.GetAgent(resolvedAgentID); ok {
 			return scopedAgent
 		}
 		return agent
-	}
-
-	if parsed := session.ParseLegacyAgentSessionKey(sessionKey); parsed != nil {
-		if agent, ok := registry.GetAgent(parsed.AgentID); ok {
-			return agent
-		}
 	}
 
 	return registry.GetDefaultAgent()

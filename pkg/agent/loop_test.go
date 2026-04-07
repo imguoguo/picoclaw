@@ -1274,6 +1274,36 @@ func (m *handledUserProvider) GetDefaultModel() string {
 	return "handled-user-model"
 }
 
+type messageToolProvider struct {
+	calls int
+}
+
+func (m *messageToolProvider) Chat(
+	ctx context.Context,
+	messages []providers.Message,
+	tools []providers.ToolDefinition,
+	model string,
+	opts map[string]any,
+) (*providers.LLMResponse, error) {
+	m.calls++
+	if m.calls == 1 {
+		return &providers.LLMResponse{
+			Content: "",
+			ToolCalls: []providers.ToolCall{{
+				ID:        "call_message",
+				Type:      "function",
+				Name:      "message",
+				Arguments: map[string]any{"content": "direct tool message"},
+			}},
+		}, nil
+	}
+	return &providers.LLMResponse{}, nil
+}
+
+func (m *messageToolProvider) GetDefaultModel() string {
+	return "message-tool-model"
+}
+
 type artifactThenSendProvider struct {
 	calls int
 }
@@ -3055,6 +3085,53 @@ func TestProcessMessage_PublishesToolFeedbackWhenEnabled(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("expected outbound tool feedback for regular messages")
+	}
+}
+
+func TestProcessMessage_MessageToolPublishesOutboundWithTurnMetadata(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Agents.Defaults.Workspace = t.TempDir()
+	cfg.Agents.Defaults.ModelName = "test-model"
+	cfg.Agents.Defaults.MaxTokens = 4096
+	cfg.Agents.Defaults.MaxToolIterations = 10
+	cfg.Session.Dimensions = []string{"chat"}
+
+	msgBus := bus.NewMessageBus()
+	provider := &messageToolProvider{}
+	al := NewAgentLoop(cfg, msgBus, provider)
+
+	response, err := al.processMessage(context.Background(), testInboundMessage(bus.InboundMessage{
+		Channel:  "telegram",
+		SenderID: "user-1",
+		ChatID:   "chat-1",
+		Content:  "send a direct message",
+	}))
+	if err != nil {
+		t.Fatalf("processMessage() error = %v", err)
+	}
+	if response == "" {
+		t.Fatal("expected processMessage() to return a final loop response")
+	}
+
+	select {
+	case outbound := <-msgBus.OutboundChan():
+		if outbound.Content != "direct tool message" {
+			t.Fatalf("outbound content = %q, want direct tool message", outbound.Content)
+		}
+		if outbound.AgentID != "main" {
+			t.Fatalf("outbound agent_id = %q, want main", outbound.AgentID)
+		}
+		if outbound.SessionKey == "" {
+			t.Fatal("expected message tool outbound to carry session_key")
+		}
+		if outbound.Scope == nil || outbound.Scope.Values["chat"] != "direct:chat-1" {
+			t.Fatalf("unexpected message tool outbound scope: %+v", outbound.Scope)
+		}
+		if outbound.Context.Channel != "telegram" || outbound.Context.ChatID != "chat-1" {
+			t.Fatalf("unexpected message tool outbound context: %+v", outbound.Context)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected message tool outbound")
 	}
 }
 

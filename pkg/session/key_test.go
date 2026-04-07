@@ -2,6 +2,14 @@ package session
 
 import "testing"
 
+type testScopeReader struct {
+	scope *SessionScope
+}
+
+func (r testScopeReader) GetSessionScope(sessionKey string) *SessionScope {
+	return CloneScope(r.scope)
+}
+
 func TestIsExplicitSessionKey(t *testing.T) {
 	tests := []struct {
 		key  string
@@ -68,5 +76,25 @@ func TestBuildMainSessionKey(t *testing.T) {
 	}
 	if got != BuildOpaqueSessionKey("agent:main:main") {
 		t.Fatalf("BuildMainSessionKey() = %q, want stable main-key hash", got)
+	}
+}
+
+func TestResolveAgentID_PrefersSessionScope(t *testing.T) {
+	store := testScopeReader{
+		scope: &SessionScope{
+			Version: ScopeVersionV1,
+			AgentID: "Support",
+			Channel: "slack",
+		},
+	}
+
+	if got := ResolveAgentID(store, "sk_v1_anything"); got != "support" {
+		t.Fatalf("ResolveAgentID() = %q, want support", got)
+	}
+}
+
+func TestResolveAgentID_FallsBackToLegacyKey(t *testing.T) {
+	if got := ResolveAgentID(nil, "agent:Sales:telegram:direct:user123"); got != "sales" {
+		t.Fatalf("ResolveAgentID() = %q, want sales", got)
 	}
 }

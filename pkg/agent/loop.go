@@ -241,12 +241,23 @@ func registerSharedTools(
 		// Message tool
 		if cfg.Tools.IsToolEnabled("message") {
 			messageTool := tools.NewMessageTool()
-			messageTool.SetSendCallback(func(channel, chatID, content, replyToMessageID string) error {
+			messageTool.SetSendCallback(func(
+				ctx context.Context,
+				channel, chatID, content, replyToMessageID string,
+			) error {
 				pubCtx, pubCancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer pubCancel()
 				outboundCtx := bus.NewOutboundContext(channel, chatID, replyToMessageID)
+				outboundAgentID, outboundSessionKey, outboundScope := outboundTurnMetadata(
+					tools.ToolAgentID(ctx),
+					tools.ToolSessionKey(ctx),
+					tools.ToolSessionScope(ctx),
+				)
 				return msgBus.PublishOutbound(pubCtx, bus.OutboundMessage{
 					Context:          outboundCtx,
+					AgentID:          outboundAgentID,
+					SessionKey:       outboundSessionKey,
+					Scope:            outboundScope,
 					Content:          content,
 					ReplyToMessageID: replyToMessageID,
 				})
@@ -2747,6 +2758,12 @@ turnLoop:
 				ts.chatID,
 				ts.opts.Dispatch.MessageID(),
 				ts.opts.Dispatch.ReplyToMessageID(),
+			)
+			execCtx = tools.WithToolSessionContext(
+				execCtx,
+				ts.agent.ID,
+				ts.sessionKey,
+				ts.opts.Dispatch.SessionScope,
 			)
 			toolResult := ts.agent.Tools.ExecuteWithContext(
 				execCtx,

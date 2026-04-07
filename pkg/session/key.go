@@ -62,6 +62,26 @@ func ParseLegacyAgentSessionKey(sessionKey string) *ParsedLegacySessionKey {
 	return &ParsedLegacySessionKey{AgentID: agentID, Rest: rest}
 }
 
+// ResolveAgentID returns the routed agent ID associated with a session. It
+// prefers structured session scope metadata when available and falls back to
+// legacy agent-scoped session keys for compatibility.
+func ResolveAgentID(store any, sessionKey string) string {
+	if scopeReader, ok := store.(interface {
+		GetSessionScope(sessionKey string) *SessionScope
+	}); ok {
+		scope := scopeReader.GetSessionScope(sessionKey)
+		if scope != nil && strings.TrimSpace(scope.AgentID) != "" {
+			return routing.NormalizeAgentID(scope.AgentID)
+		}
+	}
+
+	if parsed := ParseLegacyAgentSessionKey(sessionKey); parsed != nil {
+		return routing.NormalizeAgentID(parsed.AgentID)
+	}
+
+	return ""
+}
+
 func BuildLegacyMainAlias(agentID string) string {
 	return fmt.Sprintf("agent:%s:main", routing.NormalizeAgentID(agentID))
 }
