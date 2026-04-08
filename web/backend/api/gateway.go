@@ -160,11 +160,59 @@ func (h *Handler) registerGatewayRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/gateway/restart", h.handleGatewayRestart)
 }
 
+// stalePidHealthProbeTimeout is short enough to keep cold-start latency low
+// but long enough to tolerate cgroup throttling on slow targets.
+const stalePidHealthProbeTimeout = 2 * time.Second
+
+// pidFileForAutoStart reads the PID file and additionally probes /health to
+// confirm the recorded gateway is actually a responsive picoclaw process.
+// Returns nil if the file is missing, the process is dead, or the gateway
+// fails the health probe (in which case the stale file is removed).
+//
+// This guards against stale PID files left over from power loss or crashes,
+// where the original PID may have been reused by an unrelated system process
+// after the next boot.
+func pidFileForAutoStart() *ppid.PidFileData {
+	pidData := ppid.ReadPidFileWithCheck(globalConfigDir())
+	if pidData == nil {
+		return nil
+	}
+	if probeStalePidHealth(pidData) {
+		return pidData
+	}
+	logger.WarnC("gateway", fmt.Sprintf(
+		"PID file points at PID %d (%s:%d) but /health is unreachable; treating as stale and removing",
+		pidData.PID, pidData.Host, pidData.Port,
+	))
+	if err := ppid.ForceRemovePidFile(globalConfigDir()); err != nil {
+		logger.ErrorC("gateway", fmt.Sprintf("Failed to remove stale PID file: %v", err))
+	}
+	return nil
+}
+
+// probeStalePidHealth calls /health on host:port from the PID file to
+// confirm a live picoclaw gateway. Uses gatewayProbeHost so that a recorded
+// 0.0.0.0 bind host is dialled as 127.0.0.1.
+func probeStalePidHealth(pidData *ppid.PidFileData) bool {
+	if pidData == nil || pidData.Port <= 0 {
+		return false
+	}
+	host := gatewayProbeHost(pidData.Host)
+	url := "http://" + net.JoinHostPort(host, strconv.Itoa(pidData.Port)) + "/health"
+	resp, status, err := getGatewayHealthByURL(url, stalePidHealthProbeTimeout)
+	if err != nil || status != http.StatusOK || resp == nil {
+		return false
+	}
+	return strings.EqualFold(resp.Status, "ok")
+}
+
 // TryAutoStartGateway checks whether gateway start preconditions are met and
 // starts it when possible. Intended to be called by the backend at startup.
 func (h *Handler) TryAutoStartGateway() {
-	// Check PID file first to detect an already-running gateway.
-	pidData := ppid.ReadPidFileWithCheck(globalConfigDir())
+	// Check PID file first to detect an already-running gateway. Probes
+	// /health so a stale PID file (e.g. left over after power loss) is
+	// discarded instead of causing the launcher to attach to a phantom.
+	pidData := pidFileForAutoStart()
 	if pidData != nil {
 		gateway.mu.Lock()
 		ready, reason, err := h.gatewayStartReady()

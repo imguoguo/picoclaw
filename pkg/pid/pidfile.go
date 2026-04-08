@@ -151,6 +151,23 @@ func RemovePidFile(homePath string) {
 	os.Remove(pidPath)
 }
 
+// ForceRemovePidFile unconditionally deletes the PID file. Unlike
+// RemovePidFile, it does not require the recorded PID to match the current
+// process. Intended for callers (e.g. the launcher) that have positively
+// determined the file is stale — for example, when the recorded gateway
+// fails a /health probe after a crash or power loss.
+func ForceRemovePidFile(homePath string) error {
+	pidMu.Lock()
+	defer pidMu.Unlock()
+
+	pidPath := pidFilePath(homePath)
+	logger.Infof("force remove pid file: %s", pidPath)
+	if err := os.Remove(pidPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 // readPidFileUnlocked reads the PID file without acquiring the lock.
 // Caller must hold pidMu.
 func readPidFileUnlocked(pidPath string) (*PidFileData, error) {

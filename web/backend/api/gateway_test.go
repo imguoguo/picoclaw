@@ -1249,3 +1249,133 @@ func TestFindPicoclawBinary_EnvOverride_InvalidPath(t *testing.T) {
 		t.Errorf("FindPicoclawBinary() returned invalid env path %q, expected fallback", got)
 	}
 }
+
+// TestPidFileForAutoStart_NoFile verifies that when no PID file exists the
+// helper returns nil (and does not panic on the missing file).
+func TestPidFileForAutoStart_NoFile(t *testing.T) {
+	resetGatewayTestState(t)
+
+	if got := pidFileForAutoStart(); got != nil {
+		t.Fatalf("pidFileForAutoStart() = %#v, want nil", got)
+	}
+}
+
+// TestPidFileForAutoStart_HealthyGateway verifies that when the recorded
+// process is alive AND /health responds with status=ok, the PID data is
+// returned and the file is preserved.
+func TestPidFileForAutoStart_HealthyGateway(t *testing.T) {
+	resetGatewayTestState(t)
+
+	cmd := startLongRunningProcess(t)
+	t.Cleanup(func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		_ = cmd.Wait()
+	})
+
+	// Write a PID file pointing at the live test process.
+	written, err := ppid.WritePidFile(globalConfigDir(), "127.0.0.1", 18790)
+	require.NoError(t, err)
+	// Override the on-disk PID to the test child instead of os.Getpid().
+	written.PID = cmd.Process.Pid
+	require.NoError(t, rewritePidFile(t, written))
+
+	gatewayHealthGet = func(string, time.Duration) (*http.Response, error) {
+		return mockGatewayHealthResponse(http.StatusOK, cmd.Process.Pid), nil
+	}
+
+	got := pidFileForAutoStart()
+	if got == nil {
+		t.Fatal("pidFileForAutoStart() = nil, want non-nil for healthy gateway")
+	}
+	if got.PID != cmd.Process.Pid {
+		t.Fatalf("got.PID = %d, want %d", got.PID, cmd.Process.Pid)
+	}
+
+	// File should still exist after a healthy probe.
+	if _, statErr := os.Stat(filepath.Join(globalConfigDir(), ".picoclaw.pid")); os.IsNotExist(statErr) {
+		t.Fatal("PID file was removed after a healthy probe")
+	}
+}
+
+// TestPidFileForAutoStart_StaleHealthUnreachable verifies the bug fix:
+// the recorded process is alive (signal 0 succeeds) but /health is
+// unreachable, indicating the PID has been reused by an unrelated process
+// after a power-loss reboot. In that case the file should be treated as
+// stale, removed, and the helper should return nil.
+func TestPidFileForAutoStart_StaleHealthUnreachable(t *testing.T) {
+	resetGatewayTestState(t)
+
+	cmd := startLongRunningProcess(t)
+	t.Cleanup(func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		_ = cmd.Wait()
+	})
+
+	written, err := ppid.WritePidFile(globalConfigDir(), "0.0.0.0", 18790)
+	require.NoError(t, err)
+	written.PID = cmd.Process.Pid
+	require.NoError(t, rewritePidFile(t, written))
+
+	gatewayHealthGet = func(string, time.Duration) (*http.Response, error) {
+		return nil, errors.New("connection refused")
+	}
+
+	got := pidFileForAutoStart()
+	if got != nil {
+		t.Fatalf("pidFileForAutoStart() = %#v, want nil for stale gateway", got)
+	}
+
+	// Stale PID file must be removed.
+	if _, statErr := os.Stat(filepath.Join(globalConfigDir(), ".picoclaw.pid")); !os.IsNotExist(statErr) {
+		t.Fatalf("PID file should be removed when /health is unreachable, stat err = %v", statErr)
+	}
+}
+
+// TestPidFileForAutoStart_HealthOkButWrongStatus verifies that an HTTP 200
+// response without a "status":"ok" body (e.g. a different web server
+// happens to listen on the same port) is treated as stale.
+func TestPidFileForAutoStart_HealthOkButWrongStatus(t *testing.T) {
+	resetGatewayTestState(t)
+
+	cmd := startLongRunningProcess(t)
+	t.Cleanup(func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		_ = cmd.Wait()
+	})
+
+	written, err := ppid.WritePidFile(globalConfigDir(), "127.0.0.1", 18790)
+	require.NoError(t, err)
+	written.PID = cmd.Process.Pid
+	require.NoError(t, rewritePidFile(t, written))
+
+	gatewayHealthGet = func(string, time.Duration) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body: io.NopCloser(strings.NewReader(
+				`{"status":"degraded"}`,
+			)),
+		}, nil
+	}
+
+	got := pidFileForAutoStart()
+	if got != nil {
+		t.Fatalf("pidFileForAutoStart() = %#v, want nil when status != ok", got)
+	}
+}
+
+// rewritePidFile overwrites the PID file with the given data, used by tests
+// that need a recorded PID different from os.Getpid().
+func rewritePidFile(t *testing.T, data *ppid.PidFileData) error {
+	t.Helper()
+	raw, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(globalConfigDir(), ".picoclaw.pid"), raw, 0o600)
+}
