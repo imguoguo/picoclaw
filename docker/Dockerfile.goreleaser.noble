@@ -1,0 +1,30 @@
+FROM ubuntu:noble
+
+ARG TARGETPLATFORM
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        tzdata \
+        bash \
+        curl \
+        wget \
+        git \
+        jq \
+        unzip \
+        openssh-client \
+        python3 \
+        python3-pip \
+        python3-venv \
+        nodejs \
+        npm \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY $TARGETPLATFORM/picoclaw /usr/local/bin/picoclaw
+COPY docker/entrypoint.sh /entrypoint.sh
+
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

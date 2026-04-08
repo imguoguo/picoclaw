@@ -171,6 +171,38 @@ dockers_v2:
       - linux/arm64
       - linux/riscv64
 
+  - id: picoclaw-noble
+    dockerfile: docker/Dockerfile.goreleaser.noble
+    extra_files:
+      - docker/entrypoint.sh
+    ids:
+      - picoclaw
+    images:
+      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/picoclaw"
+      - 'docker.io/{{ .Env.DOCKERHUB_IMAGE_NAME }}'
+    tags:
+      - '{{ if isEnvSet "NIGHTLY_BUILD" }}nightly-noble{{ else }}{{ .Tag }}-noble{{ end }}'
+      - '{{ if isEnvSet "NIGHTLY_BUILD" }}nightly-noble{{ else }}noble{{ end }}'
+    platforms:
+      - linux/amd64
+      - linux/arm64
+
+  - id: picoclaw-launcher-noble
+    dockerfile: docker/Dockerfile.goreleaser.launcher.noble
+    ids:
+      - picoclaw
+      - picoclaw-launcher
+      - picoclaw-launcher-tui
+    images:
+      - "ghcr.io/{{ .Env.GITHUB_REPOSITORY_OWNER }}/picoclaw"
+      - 'docker.io/{{ .Env.DOCKERHUB_IMAGE_NAME }}'
+    tags:
+      - '{{ if isEnvSet "NIGHTLY_BUILD" }}nightly-launcher-noble{{ else }}{{ .Tag }}-launcher-noble{{ end }}'
+      - '{{ if isEnvSet "NIGHTLY_BUILD" }}nightly-launcher-noble{{ else }}launcher-noble{{ end }}'
+    platforms:
+      - linux/amd64
+      - linux/arm64
+
 notarize:
   macos:
     - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
