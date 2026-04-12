@@ -192,18 +192,30 @@ func EvalSeahorseLLM(
 			var contentParts []string
 			if len(messageIDs) > 0 {
 				expandResult, err := retrieval.ExpandMessages(ctx, messageIDs)
-				if err == nil {
+				if err != nil {
+					log.Printf("WARN: expand failed for sample %s: %v", sample.SampleID, err)
+				} else {
 					for _, msg := range expandResult.Messages {
 						contentParts = append(contentParts, msg.Content)
 					}
 				}
 			}
 
-			contextText := ""
-			if len(contentParts) > 0 {
-				truncated, _ := BudgetTruncate(contentParts, budgetTokens)
-				contextText = StringListToContent(truncated)
+			if len(contentParts) == 0 {
+				qaResults = append(qaResults, QAResult{
+					Question:   qa.Question,
+					Category:   qa.Category,
+					GoldAnswer: qa.AnswerString(),
+					TokenF1:    0.0,
+					HitRate:    0.0,
+				})
+				log.Printf("[seahorse-llm] sample=%s q=%d/%d score=0.00 answer=(no context)",
+					sample.SampleID, total, totalQA)
+				continue
 			}
+
+			truncated, _ := BudgetTruncate(contentParts, budgetTokens)
+			contextText := StringListToContent(truncated)
 
 			// Generate answer with LLM
 			llmAnswer := ""

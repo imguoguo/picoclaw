@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -25,6 +26,7 @@ var (
 	flagModel      string
 	flagNoThinking bool
 	flagLimit      int
+	flagTimeout    int
 )
 
 func main() {
@@ -62,6 +64,7 @@ func main() {
 	evalCmd.Flags().
 		BoolVar(&flagNoThinking, "no-thinking", false, "disable thinking mode via chat_template_kwargs (llama.cpp + Qwen)")
 	evalCmd.Flags().IntVar(&flagLimit, "limit", 0, "max QA questions per sample (0 = all)")
+	evalCmd.Flags().IntVar(&flagTimeout, "timeout", 120, "HTTP timeout in seconds for LLM requests")
 
 	reportCmd := &cobra.Command{
 		Use:   "report",
@@ -87,6 +90,7 @@ func main() {
 	runCmd.Flags().
 		BoolVar(&flagNoThinking, "no-thinking", false, "disable thinking mode via chat_template_kwargs (llama.cpp + Qwen)")
 	runCmd.Flags().IntVar(&flagLimit, "limit", 0, "max QA questions per sample (0 = all)")
+	runCmd.Flags().IntVar(&flagTimeout, "timeout", 120, "HTTP timeout in seconds for LLM requests")
 
 	rootCmd.AddCommand(ingestCmd, evalCmd, reportCmd, runCmd)
 
@@ -167,7 +171,16 @@ func runEval(cmd *cobra.Command, args []string) error {
 		log.Printf("Limited to %d QA per sample", flagLimit)
 	}
 
-	useLLM := strings.ToLower(flagEvalMode) == "llm"
+	evalMode := strings.ToLower(strings.TrimSpace(flagEvalMode))
+	var useLLM bool
+	switch evalMode {
+	case "token":
+		useLLM = false
+	case "llm":
+		useLLM = true
+	default:
+		return fmt.Errorf("invalid --eval-mode %q: must be token or llm", flagEvalMode)
+	}
 	var llmClient *LLMClient
 	if useLLM {
 		opts, err := buildLLMOptions()
@@ -178,7 +191,7 @@ func runEval(cmd *cobra.Command, args []string) error {
 		log.Printf("LLM eval mode: model=%s base=%s no-thinking=%v", opts.Model, opts.BaseURL, opts.NoThinking)
 	}
 
-	var allResults []EvalResult
+	var tokenResults, llmResults []EvalResult
 
 	for _, mode := range modes {
 		switch mode {
@@ -189,11 +202,11 @@ func runEval(cmd *cobra.Command, args []string) error {
 			}
 			if useLLM {
 				results := EvalLegacyLLM(ctx, samples, legacy, flagBudget, llmClient)
-				allResults = append(allResults, results...)
+				llmResults = append(llmResults, results...)
 				log.Printf("legacy-llm: evaluated %d samples", len(results))
 			} else {
 				results := EvalLegacy(ctx, samples, legacy, flagBudget)
-				allResults = append(allResults, results...)
+				tokenResults = append(tokenResults, results...)
 				log.Printf("legacy: evaluated %d samples", len(results))
 			}
 		case "seahorse":
@@ -204,16 +217,17 @@ func runEval(cmd *cobra.Command, args []string) error {
 			}
 			if useLLM {
 				results := EvalSeahorseLLM(ctx, samples, ir, flagBudget, llmClient)
-				allResults = append(allResults, results...)
+				llmResults = append(llmResults, results...)
 				log.Printf("seahorse-llm: evaluated %d samples", len(results))
 			} else {
 				results := EvalSeahorse(ctx, samples, ir, flagBudget)
-				allResults = append(allResults, results...)
+				tokenResults = append(tokenResults, results...)
 				log.Printf("seahorse: evaluated %d samples", len(results))
 			}
 		}
 	}
 
+	allResults := append(tokenResults, llmResults...)
 	if err := SaveResults(allResults, flagOut); err != nil {
 		return fmt.Errorf("save results: %w", err)
 	}
@@ -221,7 +235,7 @@ func runEval(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("save aggregated: %w", err)
 	}
 
-	PrintComparison(allResults, nil)
+	PrintComparison(tokenResults, llmResults)
 	return nil
 }
 
@@ -296,5 +310,6 @@ func buildLLMOptions() (LLMClientOptions, error) {
 		Model:      model,
 		APIKey:     apiKey,
 		NoThinking: flagNoThinking,
+		Timeout:    time.Duration(flagTimeout) * time.Second,
 	}, nil
 }
