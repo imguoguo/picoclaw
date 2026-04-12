@@ -27,9 +27,10 @@ Output ONLY the number, nothing else.`
 
 // generateAnswer asks the LLM to answer a question given retrieved context.
 func generateAnswer(ctx context.Context, client *LLMClient, contextText, question string) (string, error) {
-	// Truncate context to avoid exceeding model limits
-	if len(contextText) > 6000 {
-		contextText = contextText[:6000] + "\n... [truncated]"
+	// Truncate context to avoid exceeding model limits while preserving valid UTF-8.
+	contextRunes := []rune(contextText)
+	if len(contextRunes) > 6000 {
+		contextText = string(contextRunes[:6000]) + "\n... [truncated]"
 	}
 
 	userPrompt := fmt.Sprintf("## Conversation Context\n\n%s\n\n## Question\n\n%s", contextText, question)
@@ -74,6 +75,7 @@ func EvalLegacyLLM(
 	budgetTokens int,
 	client *LLMClient,
 ) []EvalResult {
+	totalQA := countTotalQA(samples)
 	results := make([]EvalResult, 0, len(samples))
 	total := 0
 	for si := range samples {
@@ -119,7 +121,7 @@ func EvalLegacyLLM(
 			})
 
 			log.Printf("[legacy-llm] sample=%s q=%d/%d score=%.2f answer=%q",
-				sample.SampleID, total, countTotalQA(samples), score, truncateStr(llmAnswer, 80))
+				sample.SampleID, total, totalQA, score, truncateStr(llmAnswer, 80))
 		}
 
 		results = append(results, EvalResult{
@@ -143,6 +145,7 @@ func EvalSeahorseLLM(
 	store := ir.Engine.GetRetrieval().Store()
 	retrieval := ir.Engine.GetRetrieval()
 
+	totalQA := countTotalQA(samples)
 	results := make([]EvalResult, 0, len(samples))
 	total := 0
 	for si := range samples {
@@ -168,6 +171,7 @@ func EvalSeahorseLLM(
 					Limit:          20,
 				})
 				if err != nil {
+					log.Printf("WARN: search failed for keyword %q: %v", kw, err)
 					continue
 				}
 				for _, sr := range searchResults {
@@ -232,7 +236,7 @@ func EvalSeahorseLLM(
 			})
 
 			log.Printf("[seahorse-llm] sample=%s q=%d/%d score=%.2f answer=%q",
-				sample.SampleID, total, countTotalQA(samples), score, truncateStr(llmAnswer, 80))
+				sample.SampleID, total, totalQA, score, truncateStr(llmAnswer, 80))
 		}
 
 		results = append(results, EvalResult{

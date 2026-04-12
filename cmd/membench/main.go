@@ -284,6 +284,11 @@ func buildLLMOptions() (LLMClientOptions, error) {
 		base = "http://127.0.0.1:8080"
 	}
 	model := envOrFlag(flagModel, "MEMBENCH_MODEL")
+	if model == "" {
+		return LLMClientOptions{}, fmt.Errorf(
+			"--model or MEMBENCH_MODEL is required for LLM eval mode",
+		)
+	}
 	apiKey := envOrFlag(flagAPIKey, "MEMBENCH_API_KEY")
 
 	return LLMClientOptions{
