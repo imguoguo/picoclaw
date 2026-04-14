@@ -71,16 +71,23 @@ type chatMessage struct {
 type chatResponse struct {
 	Choices []struct {
 		Message struct {
-			Content string `json:"content"`
+			Content          string `json:"content"`
+			ReasoningContent string `json:"reasoning_content,omitempty"`
 		} `json:"message"`
 	} `json:"choices"`
 }
 
 // Complete sends a chat completion request and returns the assistant's reply.
 func (c *LLMClient) Complete(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+	sysContent := systemPrompt
+	if c.NoThinking && sysContent != "" {
+		// Prepend /no_think tag — works with Ollama /v1 endpoint and
+		// Qwen chat templates where the JSON think field is ignored.
+		sysContent = "/no_think\n" + sysContent
+	}
 	messages := []chatMessage{}
-	if systemPrompt != "" {
-		messages = append(messages, chatMessage{Role: "system", Content: systemPrompt})
+	if sysContent != "" {
+		messages = append(messages, chatMessage{Role: "system", Content: sysContent})
 	}
 	messages = append(messages, chatMessage{Role: "user", Content: userPrompt})
 
@@ -88,7 +95,7 @@ func (c *LLMClient) Complete(ctx context.Context, systemPrompt, userPrompt strin
 		Model:       c.Model,
 		Messages:    messages,
 		Temperature: 0.1,
-		MaxTokens:   2048,
+		MaxTokens:   512,
 	}
 	if c.NoThinking {
 		// llama.cpp: chat_template_kwargs
@@ -179,6 +186,10 @@ func (c *LLMClient) Complete(ctx context.Context, systemPrompt, userPrompt strin
 	// Strip any residual <think>...</think> blocks
 	if idx := strings.Index(content, "</think>"); idx >= 0 {
 		content = strings.TrimSpace(content[idx+len("</think>"):])
+	}
+	// Fallback: GLM/DeepSeek put thinking output in reasoning_content when thinking is enabled
+	if content == "" && chatResp.Choices[0].Message.ReasoningContent != "" {
+		content = strings.TrimSpace(chatResp.Choices[0].Message.ReasoningContent)
 	}
 	if content == "" {
 		return "", fmt.Errorf("empty LLM response")

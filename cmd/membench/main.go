@@ -16,18 +16,22 @@ import (
 )
 
 var (
-	flagData       string
-	flagOut        string
-	flagMode       string
-	flagBudget     int
-	flagEvalMode   string
-	flagAPIBase    string
-	flagAPIKey     string
-	flagModel      string
-	flagNoThinking bool
-	flagLimit      int
-	flagTimeout    int
-	flagRetries    int
+	flagData         string
+	flagOut          string
+	flagMode         string
+	flagBudget       int
+	flagEvalMode     string
+	flagAPIBase      string
+	flagAPIKey       string
+	flagModel        string
+	flagNoThinking   bool
+	flagLimit        int
+	flagTimeout      int
+	flagRetries      int
+	flagJudgeModel   string
+	flagJudgeAPIBase string
+	flagJudgeAPIKey  string
+	flagConcurrency  int
 )
 
 func main() {
@@ -68,6 +72,11 @@ func main() {
 	evalCmd.Flags().IntVar(&flagLimit, "limit", 0, "max QA questions per sample (0 = all)")
 	evalCmd.Flags().IntVar(&flagTimeout, "timeout", 120, "HTTP timeout in seconds for LLM requests")
 	evalCmd.Flags().IntVar(&flagRetries, "retries", 3, "max retry attempts for transient LLM errors (timeout/5xx/429)")
+	evalCmd.Flags().StringVar(&flagJudgeModel, "judge-model", "", "model for judge scoring (defaults to --model)")
+	evalCmd.Flags().
+		StringVar(&flagJudgeAPIBase, "judge-api-base", "", "API base URL for judge model (defaults to --api-base)")
+	evalCmd.Flags().StringVar(&flagJudgeAPIKey, "judge-api-key", "", "API key for judge model (defaults to --api-key)")
+	evalCmd.Flags().IntVar(&flagConcurrency, "concurrency", 1, "number of concurrent QA evaluations")
 
 	reportCmd := &cobra.Command{
 		Use:   "report",
@@ -96,6 +105,11 @@ func main() {
 	runCmd.Flags().IntVar(&flagLimit, "limit", 0, "max QA questions per sample (0 = all)")
 	runCmd.Flags().IntVar(&flagTimeout, "timeout", 120, "HTTP timeout in seconds for LLM requests")
 	runCmd.Flags().IntVar(&flagRetries, "retries", 3, "max retry attempts for transient LLM errors (timeout/5xx/429)")
+	runCmd.Flags().StringVar(&flagJudgeModel, "judge-model", "", "model for judge scoring (defaults to --model)")
+	runCmd.Flags().
+		StringVar(&flagJudgeAPIBase, "judge-api-base", "", "API base URL for judge model (defaults to --api-base)")
+	runCmd.Flags().StringVar(&flagJudgeAPIKey, "judge-api-key", "", "API key for judge model (defaults to --api-key)")
+	runCmd.Flags().IntVar(&flagConcurrency, "concurrency", 1, "number of concurrent QA evaluations")
 
 	rootCmd.AddCommand(ingestCmd, evalCmd, reportCmd, runCmd)
 
@@ -186,14 +200,28 @@ func runEval(cmd *cobra.Command, args []string) error {
 	default:
 		return fmt.Errorf("invalid --eval-mode %q: must be token or llm", flagEvalMode)
 	}
-	var llmClient *LLMClient
+	var answerClient, judgeClient *LLMClient
 	if useLLM {
 		opts, err := buildLLMOptions()
 		if err != nil {
 			return err
 		}
-		llmClient = NewLLMClient(opts)
-		log.Printf("LLM eval mode: model=%s base=%s no-thinking=%v", opts.Model, opts.BaseURL, opts.NoThinking)
+		answerClient = NewLLMClient(opts)
+		judgeClient = answerClient // default: same client
+		if flagJudgeModel != "" {
+			jOpts := opts // copy base settings
+			jOpts.Model = flagJudgeModel
+			if flagJudgeAPIBase != "" {
+				jOpts.BaseURL = flagJudgeAPIBase
+			}
+			if flagJudgeAPIKey != "" {
+				jOpts.APIKey = flagJudgeAPIKey
+			}
+			judgeClient = NewLLMClient(jOpts)
+			log.Printf("Judge model: model=%s base=%s no-thinking=%v", jOpts.Model, jOpts.BaseURL, jOpts.NoThinking)
+		}
+		log.Printf("LLM eval mode: model=%s base=%s no-thinking=%v concurrency=%d",
+			opts.Model, opts.BaseURL, opts.NoThinking, flagConcurrency)
 	}
 
 	var tokenResults, llmResults []EvalResult
@@ -206,7 +234,7 @@ func runEval(cmd *cobra.Command, args []string) error {
 				legacy.IngestSample(&samples[i])
 			}
 			if useLLM {
-				results := EvalLegacyLLM(ctx, samples, legacy, flagBudget, llmClient)
+				results := EvalLegacyLLM(ctx, samples, legacy, flagBudget, answerClient, judgeClient, flagConcurrency)
 				llmResults = append(llmResults, results...)
 				log.Printf("legacy-llm: evaluated %d samples", len(results))
 			} else {
@@ -221,7 +249,7 @@ func runEval(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("ingest seahorse: %w", err)
 			}
 			if useLLM {
-				results := EvalSeahorseLLM(ctx, samples, ir, flagBudget, llmClient)
+				results := EvalSeahorseLLM(ctx, samples, ir, flagBudget, answerClient, judgeClient, flagConcurrency)
 				llmResults = append(llmResults, results...)
 				log.Printf("seahorse-llm: evaluated %d samples", len(results))
 			} else {

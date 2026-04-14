@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/sipeed/picoclaw/pkg/seahorse"
 )
@@ -46,7 +47,7 @@ var scoreRe = regexp.MustCompile(`\b([1-5])\b`)
 // Returns a score from 0.0 to 1.0, or -1.0 on parse failure.
 func judgeAnswer(
 	ctx context.Context,
-	client *LLMClient,
+	judgeClient *LLMClient,
 	question, goldAnswer, candidateAnswer string,
 ) (float64, error) {
 	userPrompt := fmt.Sprintf(
@@ -54,7 +55,7 @@ func judgeAnswer(
 		question, goldAnswer, candidateAnswer,
 	)
 
-	response, err := client.Complete(ctx, judgeSystemPrompt, userPrompt)
+	response, err := judgeClient.Complete(ctx, judgeSystemPrompt, userPrompt)
 	if err != nil {
 		return -1.0, err
 	}
@@ -68,17 +69,80 @@ func judgeAnswer(
 	return -1.0, nil
 }
 
+// qaWork describes one QA evaluation unit.
+type qaWork struct {
+	sampleID    string
+	qaIndex     int
+	globalIndex int
+	totalQA     int
+	qa          *LocomoQA
+	contextText string
+	sample      *LocomoSample
+}
+
+// qaResult collects one QA evaluation output.
+type qaResultOut struct {
+	index  int // position in the flat QA list for ordering
+	result QAResult
+	answer string
+	score  float64
+}
+
+// evalQAWorker processes a single QA item: generate answer + judge score.
+func evalQAWorker(
+	ctx context.Context,
+	w qaWork,
+	answerClient, judgeClient *LLMClient,
+	logPrefix string,
+) qaResultOut {
+	llmAnswer, err := generateAnswer(ctx, answerClient, w.contextText, w.qa.Question)
+	if err != nil {
+		log.Printf("WARN: LLM generation failed for sample %s Q%d: %v", w.sampleID, w.qaIndex, err)
+		llmAnswer = ""
+	}
+
+	score := -1.0
+	if llmAnswer != "" {
+		score, err = judgeAnswer(ctx, judgeClient, w.qa.Question, w.qa.AnswerString(), llmAnswer)
+		if err != nil {
+			log.Printf("WARN: LLM judge failed for sample %s Q%d: %v", w.sampleID, w.qaIndex, err)
+		}
+	}
+
+	hitRate := RecallHitRate(w.qa.Evidence, w.sample, w.contextText)
+
+	log.Printf("[%s] sample=%s q=%d/%d score=%.2f answer=%q",
+		logPrefix, w.sampleID, w.globalIndex, w.totalQA, score, truncateStr(llmAnswer, 80))
+
+	return qaResultOut{
+		index: w.globalIndex,
+		result: QAResult{
+			Question:   w.qa.Question,
+			Category:   w.qa.Category,
+			GoldAnswer: w.qa.AnswerString(),
+			TokenF1:    score,
+			HitRate:    hitRate,
+		},
+		answer: llmAnswer,
+		score:  score,
+	}
+}
+
 // EvalLegacyLLM evaluates legacy store using LLM generation + LLM-as-Judge.
 func EvalLegacyLLM(
 	ctx context.Context,
 	samples []LocomoSample,
 	legacy *LegacyStore,
 	budgetTokens int,
-	client *LLMClient,
+	answerClient, judgeClient *LLMClient,
+	concurrency int,
 ) []EvalResult {
+	if concurrency < 1 {
+		concurrency = 1
+	}
 	totalQA := countTotalQA(samples)
 	results := make([]EvalResult, 0, len(samples))
-	total := 0
+
 	for si := range samples {
 		sample := &samples[si]
 		history := legacy.GetHistory(sample.SampleID)
@@ -88,41 +152,38 @@ func EvalLegacyLLM(
 			allContent = append(allContent, msg.Content)
 		}
 
-		qaResults := make([]QAResult, 0, len(sample.QA))
-		for qi := range sample.QA {
-			qa := &sample.QA[qi]
-			total++
-			truncated, _ := BudgetTruncate(allContent, budgetTokens)
-			contextText := StringListToContent(truncated)
+		truncated, _ := BudgetTruncate(allContent, budgetTokens)
+		contextText := StringListToContent(truncated)
 
-			// Generate answer with LLM
-			llmAnswer, err := generateAnswer(ctx, client, contextText, qa.Question)
-			if err != nil {
-				log.Printf("WARN: LLM generation failed for sample %s Q%d: %v", sample.SampleID, qi, err)
-				llmAnswer = ""
+		qaResults := make([]QAResult, len(sample.QA))
+
+		if concurrency <= 1 {
+			for qi := range sample.QA {
+				out := evalQAWorker(ctx, qaWork{
+					sampleID: sample.SampleID, qaIndex: qi,
+					globalIndex: si*len(sample.QA) + qi + 1, totalQA: totalQA,
+					qa: &sample.QA[qi], contextText: contextText, sample: sample,
+				}, answerClient, judgeClient, "legacy-llm")
+				qaResults[qi] = out.result
 			}
-
-			// Judge the answer; -1.0 = API/parse failure.
-			score := -1.0
-			if llmAnswer != "" {
-				score, err = judgeAnswer(ctx, client, qa.Question, qa.AnswerString(), llmAnswer)
-				if err != nil {
-					log.Printf("WARN: LLM judge failed for sample %s Q%d: %v", sample.SampleID, qi, err)
-				}
+		} else {
+			sem := make(chan struct{}, concurrency)
+			var wg sync.WaitGroup
+			for qi := range sample.QA {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					sem <- struct{}{}
+					defer func() { <-sem }()
+					out := evalQAWorker(ctx, qaWork{
+						sampleID: sample.SampleID, qaIndex: qi,
+						globalIndex: si*len(sample.QA) + qi + 1, totalQA: totalQA,
+						qa: &sample.QA[qi], contextText: contextText, sample: sample,
+					}, answerClient, judgeClient, "legacy-llm")
+					qaResults[qi] = out.result // safe: each goroutine writes distinct index
+				}()
 			}
-
-			hitRate := RecallHitRate(qa.Evidence, sample, contextText)
-
-			qaResults = append(qaResults, QAResult{
-				Question:   qa.Question,
-				Category:   qa.Category,
-				GoldAnswer: qa.AnswerString(),
-				TokenF1:    score,
-				HitRate:    hitRate,
-			})
-
-			log.Printf("[legacy-llm] sample=%s q=%d/%d score=%.2f answer=%q",
-				sample.SampleID, total, totalQA, score, truncateStr(llmAnswer, 80))
+			wg.Wait()
 		}
 
 		results = append(results, EvalResult{
@@ -135,125 +196,126 @@ func EvalLegacyLLM(
 	return results
 }
 
+// buildSeahorseContext retrieves context for a seahorse QA item.
+func buildSeahorseContext(
+	ctx context.Context,
+	ir *SeahorseIngestResult,
+	sample *LocomoSample,
+	qa *LocomoQA,
+	budgetTokens int,
+) string {
+	store := ir.Engine.GetRetrieval().Store()
+	retrieval := ir.Engine.GetRetrieval()
+	convID := ir.ConvMap[sample.SampleID]
+
+	keywords := ExtractKeywords(qa.Question)
+	bestRank := map[int64]float64{}
+	for _, kw := range keywords {
+		searchResults, err := store.SearchMessages(ctx, seahorse.SearchInput{
+			Pattern:        kw,
+			ConversationID: convID,
+			Limit:          20,
+		})
+		if err != nil {
+			continue
+		}
+		for _, sr := range searchResults {
+			if sr.MessageID > 0 {
+				if prev, ok := bestRank[sr.MessageID]; !ok || sr.Rank < prev {
+					bestRank[sr.MessageID] = sr.Rank
+				}
+			}
+		}
+	}
+
+	messageIDs := make([]int64, 0, len(bestRank))
+	for id := range bestRank {
+		messageIDs = append(messageIDs, id)
+	}
+	sort.Slice(messageIDs, func(i, j int) bool {
+		return bestRank[messageIDs[i]] < bestRank[messageIDs[j]]
+	})
+
+	var contentParts []string
+	if len(messageIDs) > 0 {
+		expandResult, err := retrieval.ExpandMessages(ctx, messageIDs)
+		if err == nil {
+			for _, msg := range expandResult.Messages {
+				contentParts = append(contentParts, msg.Content)
+			}
+		}
+	}
+	if len(contentParts) == 0 {
+		return ""
+	}
+	truncated, _ := BudgetTruncate(contentParts, budgetTokens)
+	return StringListToContent(truncated)
+}
+
 // EvalSeahorseLLM evaluates seahorse retrieval using LLM generation + LLM-as-Judge.
 func EvalSeahorseLLM(
 	ctx context.Context,
 	samples []LocomoSample,
 	ir *SeahorseIngestResult,
 	budgetTokens int,
-	client *LLMClient,
+	answerClient, judgeClient *LLMClient,
+	concurrency int,
 ) []EvalResult {
-	store := ir.Engine.GetRetrieval().Store()
-	retrieval := ir.Engine.GetRetrieval()
-
+	if concurrency < 1 {
+		concurrency = 1
+	}
 	totalQA := countTotalQA(samples)
 	results := make([]EvalResult, 0, len(samples))
-	total := 0
+
 	for si := range samples {
 		sample := &samples[si]
-		convID, ok := ir.ConvMap[sample.SampleID]
-		if !ok {
+		if _, ok := ir.ConvMap[sample.SampleID]; !ok {
 			log.Printf("WARN: no conversation ID for sample %s", sample.SampleID)
 			continue
 		}
 
-		qaResults := make([]QAResult, 0, len(sample.QA))
-		for qi := range sample.QA {
+		qaResults := make([]QAResult, len(sample.QA))
+
+		evalOne := func(qi int) {
 			qa := &sample.QA[qi]
-			total++
-			keywords := ExtractKeywords(qa.Question)
-
-			// Search and rank
-			bestRank := map[int64]float64{}
-			for _, kw := range keywords {
-				searchResults, err := store.SearchMessages(ctx, seahorse.SearchInput{
-					Pattern:        kw,
-					ConversationID: convID,
-					Limit:          20,
-				})
-				if err != nil {
-					log.Printf("WARN: search failed for keyword %q: %v", kw, err)
-					continue
-				}
-				for _, sr := range searchResults {
-					if sr.MessageID > 0 {
-						if prev, ok := bestRank[sr.MessageID]; !ok || sr.Rank < prev {
-							bestRank[sr.MessageID] = sr.Rank
-						}
-					}
-				}
-			}
-
-			messageIDs := make([]int64, 0, len(bestRank))
-			for id := range bestRank {
-				messageIDs = append(messageIDs, id)
-			}
-			// Sort ascending: best (most-negative) rank first.
-			// BudgetTruncate walks front-to-back, so best-ranked messages are kept.
-			sort.Slice(messageIDs, func(i, j int) bool {
-				return bestRank[messageIDs[i]] < bestRank[messageIDs[j]]
-			})
-
-			var contentParts []string
-			if len(messageIDs) > 0 {
-				expandResult, err := retrieval.ExpandMessages(ctx, messageIDs)
-				if err != nil {
-					log.Printf("WARN: expand failed for sample %s: %v", sample.SampleID, err)
-				} else {
-					for _, msg := range expandResult.Messages {
-						contentParts = append(contentParts, msg.Content)
-					}
-				}
-			}
-
-			if len(contentParts) == 0 {
-				qaResults = append(qaResults, QAResult{
+			contextText := buildSeahorseContext(ctx, ir, sample, qa, budgetTokens)
+			if contextText == "" {
+				qaResults[qi] = QAResult{
 					Question:   qa.Question,
 					Category:   qa.Category,
 					GoldAnswer: qa.AnswerString(),
 					TokenF1:    0.0,
 					HitRate:    0.0,
-				})
+				}
 				log.Printf("[seahorse-llm] sample=%s q=%d/%d score=0.00 answer=(no context)",
-					sample.SampleID, total, totalQA)
-				continue
+					sample.SampleID, si*len(sample.QA)+qi+1, totalQA)
+				return
 			}
+			out := evalQAWorker(ctx, qaWork{
+				sampleID: sample.SampleID, qaIndex: qi,
+				globalIndex: si*len(sample.QA) + qi + 1, totalQA: totalQA,
+				qa: qa, contextText: contextText, sample: sample,
+			}, answerClient, judgeClient, "seahorse-llm")
+			qaResults[qi] = out.result
+		}
 
-			truncated, _ := BudgetTruncate(contentParts, budgetTokens)
-			contextText := StringListToContent(truncated)
-
-			// Generate answer with LLM
-			llmAnswer := ""
-			score := -1.0
-			if contextText != "" {
-				var err error
-				llmAnswer, err = generateAnswer(ctx, client, contextText, qa.Question)
-				if err != nil {
-					log.Printf("WARN: LLM generation failed for sample %s Q%d: %v", sample.SampleID, qi, err)
-				}
+		if concurrency <= 1 {
+			for qi := range sample.QA {
+				evalOne(qi)
 			}
-
-			// Judge the answer; -1.0 = API/parse failure.
-			if llmAnswer != "" {
-				var err error
-				score, err = judgeAnswer(ctx, client, qa.Question, qa.AnswerString(), llmAnswer)
-				if err != nil {
-					log.Printf("WARN: LLM judge failed for sample %s Q%d: %v", sample.SampleID, qi, err)
-				}
+		} else {
+			sem := make(chan struct{}, concurrency)
+			var wg sync.WaitGroup
+			for qi := range sample.QA {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					sem <- struct{}{}
+					defer func() { <-sem }()
+					evalOne(qi)
+				}()
 			}
-
-			hitRate := RecallHitRate(qa.Evidence, sample, contextText)
-
-			qaResults = append(qaResults, QAResult{
-				Question:   qa.Question,
-				Category:   qa.Category,
-				GoldAnswer: qa.AnswerString(),
-				TokenF1:    score,
-				HitRate:    hitRate,
-			})
-
-			log.Printf("[seahorse-llm] sample=%s q=%d/%d score=%.2f answer=%q",
-				sample.SampleID, total, totalQA, score, truncateStr(llmAnswer, 80))
+			wg.Wait()
 		}
 
 		results = append(results, EvalResult{
