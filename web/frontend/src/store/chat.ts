@@ -11,12 +11,19 @@ export interface ChatAttachment {
   filename?: string
 }
 
+export interface TokenUsage {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+}
+
 export interface ChatMessage {
   id: string
   role: "user" | "assistant"
   content: string
   timestamp: number | string
   attachments?: ChatAttachment[]
+  usage?: TokenUsage
 }
 
 export type ConnectionState =

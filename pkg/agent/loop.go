@@ -1595,6 +1595,7 @@ func (al *AgentLoop) runAgentLoop(
 			Channel: opts.Channel,
 			ChatID:  opts.ChatID,
 			Content: result.finalContent,
+			Usage:   tokenUsageFromTurn(ts),
 		})
 	}
 
@@ -1610,6 +1611,24 @@ func (al *AgentLoop) runAgentLoop(
 	}
 
 	return result.finalContent, nil
+}
+
+// tokenUsageFromTurn snapshots the last LLM usage recorded on the turn so
+// channels can surface per-round consumption. Returns nil when no usage
+// was reported (e.g. the provider did not include token counts).
+func tokenUsageFromTurn(ts *turnState) *bus.TokenUsage {
+	if ts == nil {
+		return nil
+	}
+	u := ts.GetLastUsage()
+	if u == nil {
+		return nil
+	}
+	return &bus.TokenUsage{
+		PromptTokens:     u.PromptTokens,
+		CompletionTokens: u.CompletionTokens,
+		TotalTokens:      u.TotalTokens,
+	}
 }
 
 func (al *AgentLoop) targetReasoningChannelID(channelName string) (chatID string) {
@@ -3537,6 +3556,34 @@ func (al *AgentLoop) buildCommandsRuntime(agent *AgentInstance, opts *processOpt
 			agent.Sessions.SetSummary(opts.SessionKey, "")
 			agent.Sessions.Save(opts.SessionKey)
 			return nil
+		}
+
+		rt.GetContextStats = func() *commands.ContextStats {
+			if opts == nil || agent.Sessions == nil {
+				return nil
+			}
+			sessionKey := opts.SessionKey
+			history := agent.Sessions.GetHistory(sessionKey)
+			totalChars := 0
+			for _, m := range history {
+				totalChars += len(m.Content)
+			}
+			stats := &commands.ContextStats{
+				SessionKey:     sessionKey,
+				MessageCount:   len(history),
+				EstimatedChars: totalChars,
+				Summary:        agent.Sessions.GetSummary(sessionKey),
+			}
+			if ts := al.getActiveTurnState(sessionKey); ts != nil {
+				if u := ts.GetLastUsage(); u != nil {
+					stats.LastUsage = &commands.TokenUsage{
+						PromptTokens:     u.PromptTokens,
+						CompletionTokens: u.CompletionTokens,
+						TotalTokens:      u.TotalTokens,
+					}
+				}
+			}
+			return stats
 		}
 	}
 	return rt

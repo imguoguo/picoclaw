@@ -1,7 +1,7 @@
 import { toast } from "sonner"
 
 import { normalizeUnixTimestamp } from "@/features/chat/state"
-import { updateChatStore } from "@/store/chat"
+import { type TokenUsage, updateChatStore } from "@/store/chat"
 
 export interface PicoMessage {
   type: string
@@ -9,6 +9,29 @@ export interface PicoMessage {
   session_id?: string
   timestamp?: number | string
   payload?: Record<string, unknown>
+}
+
+function parseTokenUsage(payload: Record<string, unknown>): TokenUsage | undefined {
+  const raw = payload.usage
+  if (!raw || typeof raw !== "object") {
+    return undefined
+  }
+  const obj = raw as Record<string, unknown>
+  const prompt = Number(obj.prompt_tokens)
+  const completion = Number(obj.completion_tokens)
+  const total = Number(obj.total_tokens)
+  if (
+    !Number.isFinite(prompt) &&
+    !Number.isFinite(completion) &&
+    !Number.isFinite(total)
+  ) {
+    return undefined
+  }
+  return {
+    prompt_tokens: Number.isFinite(prompt) ? prompt : 0,
+    completion_tokens: Number.isFinite(completion) ? completion : 0,
+    total_tokens: Number.isFinite(total) ? total : 0,
+  }
 }
 
 export function handlePicoMessage(
@@ -25,6 +48,7 @@ export function handlePicoMessage(
     case "message.create": {
       const content = (payload.content as string) || ""
       const messageId = (payload.message_id as string) || `pico-${Date.now()}`
+      const usage = parseTokenUsage(payload)
       const timestamp =
         message.timestamp !== undefined &&
         Number.isFinite(Number(message.timestamp))
@@ -39,6 +63,7 @@ export function handlePicoMessage(
             role: "assistant",
             content,
             timestamp,
+            ...(usage ? { usage } : {}),
           },
         ],
         isTyping: false,
@@ -49,13 +74,16 @@ export function handlePicoMessage(
     case "message.update": {
       const content = (payload.content as string) || ""
       const messageId = payload.message_id as string
+      const usage = parseTokenUsage(payload)
       if (!messageId) {
         break
       }
 
       updateChatStore((prev) => ({
         messages: prev.messages.map((msg) =>
-          msg.id === messageId ? { ...msg, content } : msg,
+          msg.id === messageId
+            ? { ...msg, content, ...(usage ? { usage } : {}) }
+            : msg,
         ),
       }))
       break

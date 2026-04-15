@@ -29,12 +29,22 @@ type InboundMessage struct {
 	Metadata   map[string]string `json:"metadata,omitempty"`
 }
 
+// TokenUsage carries per-turn LLM token consumption back to channels so UIs
+// can surface it without the bus package depending on pkg/providers.
+// Mirrors providers.UsageInfo; the agent loop copies values over.
+type TokenUsage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}
+
 type OutboundMessage struct {
 	Channel          string            `json:"channel"`
 	ChatID           string            `json:"chat_id"`
 	Content          string            `json:"content"`
 	ReplyToMessageID string            `json:"reply_to_message_id,omitempty"`
 	Metadata         map[string]string `json:"metadata,omitempty"`
+	Usage            *TokenUsage       `json:"usage,omitempty"`
 }
 
 // MediaPart describes a single media attachment to send.

@@ -248,9 +248,17 @@ func (c *PicoChannel) Send(ctx context.Context, msg bus.OutboundMessage) ([]stri
 		return nil, channels.ErrNotRunning
 	}
 
-	outMsg := newMessage(TypeMessageCreate, map[string]any{
+	payload := map[string]any{
 		"content": msg.Content,
-	})
+	}
+	if msg.Usage != nil {
+		payload["usage"] = map[string]any{
+			"prompt_tokens":     msg.Usage.PromptTokens,
+			"completion_tokens": msg.Usage.CompletionTokens,
+			"total_tokens":      msg.Usage.TotalTokens,
+		}
+	}
+	outMsg := newMessage(TypeMessageCreate, payload)
 
 	return nil, c.broadcastToSession(msg.ChatID, outMsg)
 }
