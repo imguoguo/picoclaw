@@ -1,0 +1,59 @@
+# ============================================================
+# Stage 1: Build frontend assets (Node.js + pnpm)
+# ============================================================
+FROM node:24-alpine3.23 AS frontend
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /src/web/frontend
+
+# Cache frontend dependencies
+COPY web/frontend/package.json web/frontend/pnpm-lock.yaml ./
+RUN CI=true pnpm install --frozen-lockfile
+
+# Build frontend
+COPY web/frontend/ ./
+RUN pnpm build:backend
+
+# ============================================================
+# Stage 2: Build Go binaries (picoclaw + picoclaw-launcher)
+# ============================================================
+FROM golang:1.25-alpine AS builder
+
+RUN apk add --no-cache git make
+
+WORKDIR /src
+
+# Cache Go dependencies
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source
+COPY . .
+
+# Copy pre-built frontend assets into the backend embed directory
+COPY --from=frontend /src/web/backend/dist web/backend/dist
+
+# Build picoclaw binary (includes go generate)
+RUN make build
+
+# Build picoclaw-launcher binary (frontend already built in stage 1)
+RUN CGO_ENABLED=0 go build -v -tags goolm,stdjson \
+    -ldflags "-s -w" \
+    -o build/picoclaw-launcher ./web/backend/
+
+# ============================================================
+# Stage 3: Minimal runtime image
+# ============================================================
+FROM alpine:3.23
+
+RUN apk add --no-cache ca-certificates tzdata curl
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -q --spider http://localhost:18790/health || exit 1
+
+COPY --from=builder /src/build/picoclaw /usr/local/bin/picoclaw
+COPY --from=builder /src/build/picoclaw-launcher /usr/local/bin/picoclaw-launcher
+
+ENTRYPOINT ["picoclaw-launcher"]
+CMD ["-console", "-public", "-no-browser"]
