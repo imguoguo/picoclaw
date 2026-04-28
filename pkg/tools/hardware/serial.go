@@ -23,7 +23,9 @@ const (
 )
 
 var (
-	unixSerialPortPattern    = regexp.MustCompile(`^(?:/dev/)?(?:ttyS\d+|ttyUSB\d+|ttyACM\d+|ttyAMA\d+|rfcomm\d+|tty\.[A-Za-z0-9._-]+|cu\.[A-Za-z0-9._-]+)$`)
+	unixSerialPortPattern = regexp.MustCompile(
+		`^(?:/dev/)?(?:ttyS\d+|ttyUSB\d+|ttyACM\d+|ttyAMA\d+|rfcomm\d+|tty\.[A-Za-z0-9._-]+|cu\.[A-Za-z0-9._-]+)$`,
+	)
 	windowsSerialPortPattern = regexp.MustCompile(`^(?:\\\\\.\\)?COM[1-9]\d*$`)
 	unixSerialBaudRates      = map[int]struct{}{
 		50: {}, 75: {}, 110: {}, 134: {}, 150: {}, 200: {}, 300: {}, 600: {}, 1200: {}, 1800: {},
@@ -219,7 +221,9 @@ func parseSerialConfig(args map[string]any) (serialConfig, *ToolResult) {
 	port, ok := args["port"].(string)
 	port = strings.TrimSpace(port)
 	if !ok || port == "" {
-		return serialConfig{}, ErrorResult("port is required (for example /dev/ttyUSB0, /dev/cu.usbserial-0001, or COM3)")
+		return serialConfig{}, ErrorResult(
+			"port is required (for example /dev/ttyUSB0, /dev/cu.usbserial-0001, or COM3)",
+		)
 	}
 
 	normalizedPort, err := normalizeSerialPort(port)

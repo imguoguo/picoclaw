@@ -103,7 +103,12 @@ func TestSerialReadCanceledBeforeOpen(t *testing.T) {
 		port = "COM3"
 	}
 
-	_, err := serialRead(ctx, serialConfig{Port: port, Baud: 115200, DataBits: 8, Parity: "none", StopBits: 1}, 1, time.Second)
+	_, err := serialRead(
+		ctx,
+		serialConfig{Port: port, Baud: 115200, DataBits: 8, Parity: "none", StopBits: 1},
+		1,
+		time.Second,
+	)
 	if err == nil || !strings.Contains(err.Error(), context.Canceled.Error()) {
 		t.Fatalf("serialRead() error = %v, want context canceled", err)
 	}
