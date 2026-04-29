@@ -38,9 +38,15 @@ COPY --from=frontend /src/web/backend/dist web/backend/dist
 RUN make build
 
 # Build picoclaw-launcher binary (frontend already built in stage 1)
-RUN CGO_ENABLED=0 go build -v -tags goolm,stdjson \
-    -ldflags "-s -w" \
-    -o build/picoclaw-launcher ./web/backend/
+# Mirror ldflags from web/Makefile to inject version metadata
+RUN CONFIG_PKG=github.com/sipeed/picoclaw/pkg/config && \
+    VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo dev) && \
+    GIT_COMMIT=$(git rev-parse --short=8 HEAD 2>/dev/null || echo dev) && \
+    BUILD_TIME=$(date +%FT%T%z) && \
+    GO_VERSION=$(go env GOVERSION) && \
+    CGO_ENABLED=0 go build -v -tags goolm,stdjson \
+      -ldflags "-X ${CONFIG_PKG}.Version=${VERSION} -X ${CONFIG_PKG}.GitCommit=${GIT_COMMIT} -X ${CONFIG_PKG}.BuildTime=${BUILD_TIME} -X ${CONFIG_PKG}.GoVersion=${GO_VERSION} -s -w" \
+      -o build/picoclaw-launcher ./web/backend/
 
 # ============================================================
 # Stage 3: Minimal runtime image
