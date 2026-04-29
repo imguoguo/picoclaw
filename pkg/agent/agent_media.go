@@ -66,6 +66,7 @@ func resolveMediaRefs(messages []providers.Message, store media.MediaStore, maxS
 			}
 
 			mime := detectMIME(localPath, meta)
+			pathTags = append(pathTags, buildPathTag(mime, localPath))
 
 			if strings.HasPrefix(mime, "image/") {
 				dataURL := encodeImageToDataURL(localPath, mime, info, maxSize)
@@ -74,8 +75,6 @@ func resolveMediaRefs(messages []providers.Message, store media.MediaStore, maxS
 				}
 				continue
 			}
-
-			pathTags = append(pathTags, buildPathTag(mime, localPath))
 		}
 
 		result[i].Media = resolved
@@ -182,6 +181,8 @@ func encodeImageToDataURL(localPath, mime string, info os.FileInfo, maxSize int)
 // Tag type is derived from MIME: [audio:/path], [video:/path], or [file:/path].
 func buildPathTag(mime, localPath string) string {
 	switch {
+	case strings.HasPrefix(mime, "image/"):
+		return "[image:" + localPath + "]"
 	case strings.HasPrefix(mime, "audio/"):
 		return "[audio:" + localPath + "]"
 	case strings.HasPrefix(mime, "video/"):
@@ -197,6 +198,8 @@ func injectPathTags(content string, tags []string) string {
 	for _, tag := range tags {
 		var generic string
 		switch {
+		case strings.HasPrefix(tag, "[image:"):
+			generic = "[image: photo]"
 		case strings.HasPrefix(tag, "[audio:"):
 			generic = "[audio]"
 		case strings.HasPrefix(tag, "[video:"):

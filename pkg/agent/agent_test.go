@@ -1781,17 +1781,22 @@ func (m *artifactThenSendProvider) Chat(
 		if messages[i].Role != "tool" {
 			continue
 		}
-		start := strings.Index(messages[i].Content, "[file:")
-		if start < 0 {
-			continue
+		for _, prefix := range []string{"[image:", "[file:", "[audio:", "[video:"} {
+			start := strings.Index(messages[i].Content, prefix)
+			if start < 0 {
+				continue
+			}
+			rest := messages[i].Content[start+len(prefix):]
+			end := strings.Index(rest, "]")
+			if end < 0 {
+				continue
+			}
+			artifactPath = rest[:end]
+			break
 		}
-		rest := messages[i].Content[start+len("[file:"):]
-		end := strings.Index(rest, "]")
-		if end < 0 {
-			continue
+		if artifactPath != "" {
+			break
 		}
-		artifactPath = rest[:end]
-		break
 	}
 	if artifactPath == "" {
 		return nil, fmt.Errorf("provider did not receive artifact path in tool result")
@@ -4656,7 +4661,7 @@ func TestRun_PicoToolFeedbackSuppressesDuplicateInterimAssistantContent(t *testi
 	}
 }
 
-func TestResolveMediaRefs_ResolvesToBase64(t *testing.T) {
+func TestResolveMediaRefs_ImageBase64AndPathTag(t *testing.T) {
 	store := media.NewFileMediaStore()
 	dir := t.TempDir()
 
@@ -4690,9 +4695,14 @@ func TestResolveMediaRefs_ResolvesToBase64(t *testing.T) {
 	if !strings.HasPrefix(result[0].Media[0], "data:image/png;base64,") {
 		t.Fatalf("expected data:image/png;base64, prefix, got %q", result[0].Media[0][:40])
 	}
+	localPath, _, _ := store.ResolveWithMeta(ref)
+	expectedContent := "describe this [image:" + localPath + "]"
+	if result[0].Content != expectedContent {
+		t.Fatalf("expected content %q, got %q", expectedContent, result[0].Content)
+	}
 }
 
-func TestResolveMediaRefs_SkipsOversizedFile(t *testing.T) {
+func TestResolveMediaRefs_OversizedImageSkipsBase64KeepsPathTag(t *testing.T) {
 	store := media.NewFileMediaStore()
 	dir := t.TempDir()
 
@@ -4713,6 +4723,11 @@ func TestResolveMediaRefs_SkipsOversizedFile(t *testing.T) {
 
 	if len(result[0].Media) != 0 {
 		t.Fatalf("expected 0 media (oversized), got %d", len(result[0].Media))
+	}
+	localPath, _, _ := store.ResolveWithMeta(ref)
+	expected := "hi [image:" + localPath + "]"
+	if result[0].Content != expected {
+		t.Fatalf("expected content %q, got %q", expected, result[0].Content)
 	}
 }
 
@@ -4796,6 +4811,11 @@ func TestResolveMediaRefs_UsesMetaContentType(t *testing.T) {
 	}
 	if !strings.HasPrefix(result[0].Media[0], "data:image/jpeg;base64,") {
 		t.Fatalf("expected jpeg prefix, got %q", result[0].Media[0][:30])
+	}
+	localPath, _, _ := store.ResolveWithMeta(ref)
+	expectedContent := "hi [image:" + localPath + "]"
+	if result[0].Content != expectedContent {
+		t.Fatalf("expected content %q, got %q", expectedContent, result[0].Content)
 	}
 }
 
@@ -4929,12 +4949,14 @@ func TestResolveMediaRefs_MixedImageAndFile(t *testing.T) {
 	result := resolveMediaRefs(messages, store, config.DefaultMaxMediaSize)
 
 	if len(result[0].Media) != 1 {
-		t.Fatalf("expected 1 media (image only), got %d", len(result[0].Media))
+		t.Fatalf("expected 1 media (image base64 only), got %d", len(result[0].Media))
 	}
 	if !strings.HasPrefix(result[0].Media[0], "data:image/png;base64,") {
 		t.Fatal("expected image to be base64 encoded")
 	}
-	expectedContent := "check these [file:" + pdfPath + "]"
+	imgLocalPath, _, _ := store.ResolveWithMeta(imgRef)
+	pdfLocalPath, _, _ := store.ResolveWithMeta(fileRef)
+	expectedContent := "check these [file:" + pdfLocalPath + "] [image:" + imgLocalPath + "]"
 	if result[0].Content != expectedContent {
 		t.Fatalf("expected content %q, got %q", expectedContent, result[0].Content)
 	}

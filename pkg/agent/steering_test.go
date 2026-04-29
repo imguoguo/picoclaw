@@ -1051,16 +1051,18 @@ func TestAgentLoop_Continue_PreservesSteeringMedia(t *testing.T) {
 
 	foundResolvedMedia := false
 	for _, msg := range msgs {
-		if msg.Role != "user" || msg.Content != "describe this image" || len(msg.Media) != 1 {
+		if msg.Role != "user" {
 			continue
 		}
-		if strings.HasPrefix(msg.Media[0], "data:image/png;base64,") {
+		hasBase64 := len(msg.Media) > 0 && strings.HasPrefix(msg.Media[0], "data:image/png;base64,")
+		hasPathTag := strings.Contains(msg.Content, "[image:")
+		if hasBase64 && hasPathTag {
 			foundResolvedMedia = true
 			break
 		}
 	}
 	if !foundResolvedMedia {
-		t.Fatal("expected continue path to inject steering media into the provider request")
+		t.Fatal("expected continue path to inject both base64 media and image path tag")
 	}
 
 	defaultAgent := al.registry.GetDefaultAgent()
