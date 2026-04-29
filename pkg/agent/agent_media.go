@@ -11,6 +11,7 @@ import (
 	"encoding/base64"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/h2non/filetype"
@@ -20,12 +21,23 @@ import (
 	"github.com/sipeed/picoclaw/pkg/providers"
 )
 
+// genericPlaceholderRegex matches generic media placeholders emitted by various
+// channels: [image], [image: photo], [image: filename.jpg] — but NOT path tags
+// like [image:/path/to/file] (path tags have no space after the colon).
+var (
+	imagePlaceholderRegex = regexp.MustCompile(`\[image(:\s+[^\]]*)?\]`)
+	audioPlaceholderRegex = regexp.MustCompile(`\[audio(:\s+[^\]]*)?\]`)
+	videoPlaceholderRegex = regexp.MustCompile(`\[video(:\s+[^\]]*)?\]`)
+	filePlaceholderRegex  = regexp.MustCompile(`\[file(:\s+[^\]]*)?\]`)
+)
+
 // resolveMediaRefs resolves media:// refs in messages.
 // For user messages: images get path tags only ([image:/path]) so the LLM
 // can decide whether to view them via load_image or operate on the file.
 // For tool messages: images are base64-encoded and appended as a synthetic
-// user message after the contiguous tool-message block ends, preserving
-// the required assistant→tool ordering for LLM APIs.
+// user message only after the contiguous tool-message block ends, so we don't
+// break the tool-results-must-immediately-follow-assistant constraint that
+// LLM APIs enforce.
 // Non-image files always get path tags regardless of role.
 // Returns a new slice; original messages are not mutated.
 func resolveMediaRefs(messages []providers.Message, store media.MediaStore, maxSize int) []providers.Message {
@@ -227,24 +239,31 @@ func buildPathTag(mime, localPath string) string {
 }
 
 // injectPathTags replaces generic media tags in content with path-bearing versions,
-// or appends if no matching generic tag is found.
+// or appends if no matching generic tag is found. Channels emit a few different
+// placeholder formats — [image], [image: photo], [image: filename.jpg] — so we
+// match all of them via regex while leaving path tags ([image:/path]) untouched.
 func injectPathTags(content string, tags []string) string {
 	for _, tag := range tags {
-		var generic string
+		var pattern *regexp.Regexp
 		switch {
 		case strings.HasPrefix(tag, "[image:"):
-			generic = "[image: photo]"
+			pattern = imagePlaceholderRegex
 		case strings.HasPrefix(tag, "[audio:"):
-			generic = "[audio]"
+			pattern = audioPlaceholderRegex
 		case strings.HasPrefix(tag, "[video:"):
-			generic = "[video]"
+			pattern = videoPlaceholderRegex
 		case strings.HasPrefix(tag, "[file:"):
-			generic = "[file]"
+			pattern = filePlaceholderRegex
 		}
 
-		if generic != "" && strings.Contains(content, generic) {
-			content = strings.Replace(content, generic, tag, 1)
-		} else if content == "" {
+		if pattern != nil {
+			if loc := pattern.FindStringIndex(content); loc != nil {
+				content = content[:loc[0]] + tag + content[loc[1]:]
+				continue
+			}
+		}
+
+		if content == "" {
 			content = tag
 		} else {
 			content += " " + tag

@@ -4992,6 +4992,54 @@ func TestResolveMediaRefs_NoGenericTagAppendsPath(t *testing.T) {
 	}
 }
 
+func TestInjectPathTags_HandlesVariousChannelPlaceholders(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+		tag     string
+		want    string
+	}{
+		// Telegram / Feishu format
+		{"image_photo", "[image: photo]", "[image:/tmp/p.png]", "[image:/tmp/p.png]"},
+		// WeCom / WeChat / Line format
+		{"bare_image", "[image]", "[image:/tmp/p.png]", "[image:/tmp/p.png]"},
+		// QQ / Discord format with filename
+		{"image_filename", "[image: pic.jpg]", "[image:/tmp/p.png]", "[image:/tmp/p.png]"},
+		{"audio_with_filename", "[audio: voice.m4a]", "[audio:/tmp/a.m4a]", "[audio:/tmp/a.m4a]"},
+		{"bare_audio", "[audio]", "[audio:/tmp/a.m4a]", "[audio:/tmp/a.m4a]"},
+		{"bare_video", "[video]", "[video:/tmp/v.mp4]", "[video:/tmp/v.mp4]"},
+		{"bare_file", "[file]", "[file:/tmp/f.pdf]", "[file:/tmp/f.pdf]"},
+		// Mixed surrounding text
+		{
+			"with_text",
+			"hello [image] world",
+			"[image:/tmp/p.png]",
+			"hello [image:/tmp/p.png] world",
+		},
+		// No placeholder — append
+		{"no_placeholder", "hello world", "[image:/tmp/p.png]", "hello world [image:/tmp/p.png]"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := injectPathTags(tc.content, []string{tc.tag})
+			if got != tc.want {
+				t.Errorf("expected %q, got %q", tc.want, got)
+			}
+		})
+	}
+}
+
+func TestInjectPathTags_DoesNotReplacePathTag(t *testing.T) {
+	// If content already contains a path tag, we must not touch it.
+	content := "see [image:/already/placed.png] thanks"
+	got := injectPathTags(content, []string{"[image:/new/path.png]"})
+	want := "see [image:/already/placed.png] thanks [image:/new/path.png]"
+	if got != want {
+		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
 func TestResolveMediaRefs_EmptyContentGetsPathTag(t *testing.T) {
 	store := media.NewFileMediaStore()
 	dir := t.TempDir()
