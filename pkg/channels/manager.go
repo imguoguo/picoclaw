@@ -197,7 +197,9 @@ func clearTrackedToolFeedbackMessage(
 // response (e.g., ResponseHandled tools) to stop orphaned animation goroutines.
 // outboundCtx carries topic/thread info for channels that use scoped tracker
 // keys (e.g., Telegram forum topics); may be nil for non-topic channels.
-func (m *Manager) DismissToolFeedback(ctx context.Context, channelName, chatID string, outboundCtx *bus.InboundContext) {
+func (m *Manager) DismissToolFeedback(
+	ctx context.Context, channelName, chatID string, outboundCtx *bus.InboundContext,
+) {
 	ch, ok := m.GetChannel(channelName)
 	if !ok {
 		return
