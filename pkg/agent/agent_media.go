@@ -242,7 +242,12 @@ func buildPathTag(mime, localPath string) string {
 // or appends if no matching generic tag is found. Channels emit a few different
 // placeholder formats — [image], [image: photo], [image: filename.jpg] — so we
 // match all of them via regex while leaving path tags ([image:/path]) untouched.
+//
+// When content is structured data (e.g., JSON from Feishu interactive cards or
+// post messages), tags are only injected via placeholder replacement — never
+// appended — to avoid corrupting the payload.
 func injectPathTags(content string, tags []string) string {
+	isStructured := looksLikeJSON(content)
 	for _, tag := range tags {
 		var pattern *regexp.Regexp
 		switch {
@@ -263,6 +268,10 @@ func injectPathTags(content string, tags []string) string {
 			}
 		}
 
+		if isStructured {
+			continue
+		}
+
 		if content == "" {
 			content = tag
 		} else {
@@ -270,4 +279,9 @@ func injectPathTags(content string, tags []string) string {
 		}
 	}
 	return content
+}
+
+func looksLikeJSON(s string) bool {
+	s = strings.TrimSpace(s)
+	return len(s) > 1 && (s[0] == '{' || s[0] == '[')
 }

@@ -5040,6 +5040,47 @@ func TestInjectPathTags_DoesNotReplacePathTag(t *testing.T) {
 	}
 }
 
+func TestInjectPathTags_SkipsAppendForJSONContent(t *testing.T) {
+	jsonContent := `{"schema":"2.0","body":{"elements":[{"tag":"img","img_key":"img_123"}]}}`
+	got := injectPathTags(jsonContent, []string{"[image:/tmp/photo.png]"})
+	if got != jsonContent {
+		t.Fatalf("expected JSON content unchanged, got %q", got)
+	}
+}
+
+func TestInjectPathTags_JSONArrayContent(t *testing.T) {
+	jsonContent := `[{"tag":"text","text":"hello"}]`
+	got := injectPathTags(jsonContent, []string{"[file:/tmp/doc.pdf]"})
+	if got != jsonContent {
+		t.Fatalf("expected JSON array content unchanged, got %q", got)
+	}
+}
+
+func TestResolveMediaRefs_JSONContentPreservesStructure(t *testing.T) {
+	store := media.NewFileMediaStore()
+	dir := t.TempDir()
+
+	pngPath := filepath.Join(dir, "card_img.png")
+	pngHeader := []byte{
+		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+		0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02,
+		0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE,
+	}
+	os.WriteFile(pngPath, pngHeader, 0o644)
+	ref, _ := store.Store(pngPath, media.MediaMeta{ContentType: "image/png"}, "test")
+
+	jsonContent := `{"schema":"2.0","body":{"elements":[{"tag":"img","img_key":"img_123"}]}}`
+	messages := []providers.Message{
+		{Role: "user", Content: jsonContent, Media: []string{ref}},
+	}
+	result := resolveMediaRefs(messages, store, config.DefaultMaxMediaSize)
+
+	if result[0].Content != jsonContent {
+		t.Fatalf("expected JSON content preserved, got %q", result[0].Content)
+	}
+}
+
 func TestResolveMediaRefs_EmptyContentGetsPathTag(t *testing.T) {
 	store := media.NewFileMediaStore()
 	dir := t.TempDir()
