@@ -269,6 +269,7 @@ func injectPathTags(content string, tags []string) string {
 		}
 
 		if isStructured {
+			content = tag + "\n" + content
 			continue
 		}
 
@@ -283,5 +284,5 @@ func injectPathTags(content string, tags []string) string {
 
 func looksLikeJSON(s string) bool {
 	s = strings.TrimSpace(s)
-	return len(s) > 1 && (s[0] == '{' || s[0] == '[')
+	return len(s) > 1 && s[0] == '{'
 }

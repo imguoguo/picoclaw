@@ -5040,23 +5040,25 @@ func TestInjectPathTags_DoesNotReplacePathTag(t *testing.T) {
 	}
 }
 
-func TestInjectPathTags_SkipsAppendForJSONContent(t *testing.T) {
+func TestInjectPathTags_PrependsForJSONContent(t *testing.T) {
 	jsonContent := `{"schema":"2.0","body":{"elements":[{"tag":"img","img_key":"img_123"}]}}`
 	got := injectPathTags(jsonContent, []string{"[image:/tmp/photo.png]"})
-	if got != jsonContent {
-		t.Fatalf("expected JSON content unchanged, got %q", got)
+	want := "[image:/tmp/photo.png]\n" + jsonContent
+	if got != want {
+		t.Fatalf("expected tag prepended to JSON, got %q", got)
 	}
 }
 
-func TestInjectPathTags_JSONArrayContent(t *testing.T) {
-	jsonContent := `[{"tag":"text","text":"hello"}]`
-	got := injectPathTags(jsonContent, []string{"[file:/tmp/doc.pdf]"})
-	if got != jsonContent {
-		t.Fatalf("expected JSON array content unchanged, got %q", got)
+func TestInjectPathTags_BracketTextNotTreatedAsJSON(t *testing.T) {
+	content := "[update] see attached report"
+	got := injectPathTags(content, []string{"[file:/tmp/report.pdf]"})
+	want := "[update] see attached report [file:/tmp/report.pdf]"
+	if got != want {
+		t.Fatalf("expected tag appended to bracket text, got %q", got)
 	}
 }
 
-func TestResolveMediaRefs_JSONContentPreservesStructure(t *testing.T) {
+func TestResolveMediaRefs_JSONContentPrependsPathTag(t *testing.T) {
 	store := media.NewFileMediaStore()
 	dir := t.TempDir()
 
@@ -5076,8 +5078,9 @@ func TestResolveMediaRefs_JSONContentPreservesStructure(t *testing.T) {
 	}
 	result := resolveMediaRefs(messages, store, config.DefaultMaxMediaSize)
 
-	if result[0].Content != jsonContent {
-		t.Fatalf("expected JSON content preserved, got %q", result[0].Content)
+	want := "[image:" + pngPath + "]\n" + jsonContent
+	if result[0].Content != want {
+		t.Fatalf("expected path tag prepended to JSON content, got %q", result[0].Content)
 	}
 }
 
