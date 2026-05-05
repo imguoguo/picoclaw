@@ -22,6 +22,7 @@ import {
   DevicesSection,
   ExecSection,
   LauncherSection,
+  MCPServerSection,
   RuntimeSection,
 } from "@/components/config/config-sections"
 import {
@@ -264,6 +265,13 @@ export function ConfigPage() {
               exec_timeout_minutes: cronExecTimeoutMinutes,
             },
             exec: execConfigPatch,
+            mcp: {
+              expose: {
+                enabled: form.mcpServerEnabled,
+                name: form.mcpServerName || "picoclaw",
+                auth_token: form.mcpServerAuthToken,
+              },
+            },
           },
           heartbeat: {
             enabled: form.heartbeatEnabled,
@@ -417,6 +425,8 @@ export function ConfigPage() {
               <ExecSection form={form} onFieldChange={updateField} />
 
               <CronSection form={form} onFieldChange={updateField} />
+
+              <MCPServerSection form={form} onFieldChange={updateField} />
 
               <DevicesSection
                 form={form}

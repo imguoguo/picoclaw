@@ -733,6 +733,16 @@ func (m *Manager) SetupHTTPServerListeners(listeners []net.Listener, addr string
 	m.httpListeners = append([]net.Listener(nil), listeners...)
 }
 
+// HandleHTTP registers an external HTTP handler on the shared gateway mux.
+// This allows other subsystems (e.g. MCP server) to serve on the same port.
+// Must be called after SetupHTTPServer/SetupHTTPServerListeners.
+func (m *Manager) HandleHTTP(pattern string, handler http.Handler) {
+	if m.mux == nil {
+		return
+	}
+	m.mux.Handle(pattern, handler)
+}
+
 // registerHTTPHandlersLocked registers webhook and health-check handlers for
 // all channels currently in m.channels. Caller must hold m.mu (or ensure
 // exclusive access).

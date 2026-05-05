@@ -43,6 +43,7 @@ import (
 	"github.com/sipeed/picoclaw/pkg/health"
 	"github.com/sipeed/picoclaw/pkg/heartbeat"
 	"github.com/sipeed/picoclaw/pkg/logger"
+	picomcp "github.com/sipeed/picoclaw/pkg/mcp"
 	"github.com/sipeed/picoclaw/pkg/media"
 	"github.com/sipeed/picoclaw/pkg/netbind"
 	"github.com/sipeed/picoclaw/pkg/pid"
@@ -443,6 +444,21 @@ func setupAndStartServices(
 		listenAddr,
 		runningServices.HealthServer,
 	)
+
+	if cfg.Tools.MCP.Expose.Enabled {
+		defaultAgent := agentLoop.GetRegistry().GetDefaultAgent()
+		if defaultAgent != nil {
+			mcpServer := picomcp.NewServer(cfg.Tools.MCP.Expose, defaultAgent.Tools)
+			runningServices.ChannelManager.HandleHTTP("/mcp/", mcpServer.Handler())
+			authNote := ""
+			if cfg.Tools.MCP.Expose.AuthToken != "" {
+				authNote = " (auth required)"
+			}
+			fmt.Printf("  • MCP Server: enabled at /mcp/%s\n", authNote)
+		} else {
+			logger.WarnF("MCP server enabled but no default agent available", nil)
+		}
+	}
 
 	if err = runningServices.ChannelManager.StartAll(context.Background()); err != nil {
 		return nil, fmt.Errorf("error starting channels: %w", err)

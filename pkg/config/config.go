@@ -972,8 +972,17 @@ type MCPConfig struct {
 	Discovery  ToolDiscoveryConfig `                                json:"discovery"`
 	// MaxInlineTextChars controls how much MCP text stays inline before it is saved as an artifact.
 	MaxInlineTextChars int `json:"max_inline_text_chars,omitempty" env:"PICOCLAW_TOOLS_MCP_MAX_INLINE_TEXT_CHARS"`
-	// Servers is a map of server name to server configuration
+	// Servers is a map of server name to server configuration (MCP client connections)
 	Servers map[string]MCPServerConfig `json:"servers,omitempty"`
+	// Expose configures PicoClaw to act as an MCP server, exposing its tools to external MCP clients.
+	Expose MCPExposeConfig `json:"expose,omitempty"`
+}
+
+// MCPExposeConfig configures PicoClaw's built-in MCP server endpoint.
+type MCPExposeConfig struct {
+	Enabled   bool   `json:"enabled"              env:"PICOCLAW_MCP_EXPOSE_ENABLED"`
+	Name      string `json:"name,omitempty"       env:"PICOCLAW_MCP_EXPOSE_NAME"`
+	AuthToken string `json:"auth_token,omitempty" env:"PICOCLAW_MCP_EXPOSE_AUTH_TOKEN"`
 }
 
 const DefaultMCPMaxInlineTextChars = 16 * 1024

@@ -615,6 +615,79 @@ export function LauncherSection({
   )
 }
 
+interface MCPServerSectionProps {
+  form: CoreConfigForm
+  onFieldChange: UpdateCoreField
+}
+
+export function MCPServerSection({
+  form,
+  onFieldChange,
+}: MCPServerSectionProps) {
+  const { t } = useTranslation()
+
+  return (
+    <ConfigSectionCard
+      title={t("pages.config.sections.mcp_server", "MCP Server")}
+      description={t(
+        "pages.config.mcp_server_desc",
+        "Expose PicoClaw tools to external MCP clients (Claude Code, VS Code, etc.)",
+      )}
+    >
+      <SwitchCardField
+        label={t("pages.config.mcp_server_enabled", "Enable MCP Server")}
+        hint={t(
+          "pages.config.mcp_server_enabled_hint",
+          "Serve tools via MCP protocol at /mcp/ endpoint",
+        )}
+        layout="setting-row"
+        checked={form.mcpServerEnabled}
+        onCheckedChange={(checked) =>
+          onFieldChange("mcpServerEnabled", checked)
+        }
+      />
+
+      <Field
+        label={t("pages.config.mcp_server_name", "Server Name")}
+        hint={t(
+          "pages.config.mcp_server_name_hint",
+          "Name advertised to MCP clients",
+        )}
+        layout="setting-row"
+      >
+        <Input
+          value={form.mcpServerName}
+          onChange={(e) => onFieldChange("mcpServerName", e.target.value)}
+          placeholder="picoclaw"
+          className="w-48"
+        />
+      </Field>
+
+      <Field
+        label={t("pages.config.mcp_server_auth_token", "Auth Token")}
+        hint={t(
+          "pages.config.mcp_server_auth_token_hint",
+          "Bearer token for authentication. Leave empty for no auth (not recommended).",
+        )}
+        layout="setting-row"
+      >
+        <Input
+          type="password"
+          value={form.mcpServerAuthToken}
+          onChange={(e) =>
+            onFieldChange("mcpServerAuthToken", e.target.value)
+          }
+          placeholder={t(
+            "pages.config.mcp_server_auth_token_placeholder",
+            "Enter token...",
+          )}
+          className="w-48"
+        />
+      </Field>
+    </ConfigSectionCard>
+  )
+}
+
 interface DevicesSectionProps {
   form: CoreConfigForm
   onFieldChange: UpdateCoreField

@@ -25,6 +25,9 @@ export interface CoreConfigForm {
   heartbeatInterval: string
   devicesEnabled: boolean
   monitorUSB: boolean
+  mcpServerEnabled: boolean
+  mcpServerName: string
+  mcpServerAuthToken: string
 }
 
 export interface LauncherForm {
@@ -91,6 +94,9 @@ export const EMPTY_FORM: CoreConfigForm = {
   heartbeatInterval: "30",
   devicesEnabled: false,
   monitorUSB: true,
+  mcpServerEnabled: false,
+  mcpServerName: "picoclaw",
+  mcpServerAuthToken: "",
 }
 
 export const EMPTY_LAUNCHER_FORM: LauncherForm = {
@@ -134,6 +140,8 @@ export function buildFormFromConfig(config: unknown): CoreConfigForm {
   const heartbeat = asRecord(root.heartbeat)
   const devices = asRecord(root.devices)
   const tools = asRecord(root.tools)
+  const mcp = asRecord(tools.mcp)
+  const mcpExpose = asRecord(mcp.expose)
   const cron = asRecord(tools.cron)
   const exec = asRecord(tools.exec)
   const toolFeedback = asRecord(defaults.tool_feedback)
@@ -228,6 +236,9 @@ export function buildFormFromConfig(config: unknown): CoreConfigForm {
       devices.monitor_usb === undefined
         ? EMPTY_FORM.monitorUSB
         : asBool(devices.monitor_usb),
+    mcpServerEnabled: asBool(mcpExpose.enabled),
+    mcpServerName: asString(mcpExpose.name) || EMPTY_FORM.mcpServerName,
+    mcpServerAuthToken: asString(mcpExpose.auth_token),
   }
 }
 
